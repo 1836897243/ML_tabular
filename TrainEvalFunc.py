@@ -23,7 +23,7 @@ def RMSE(data_loader, encoder, head, target_std, device):
     return test_rmse
 
 
-def multiclass_accuracy(data_loader, encoder, head, target_std, device):
+def multiclass_accuracy(data_loader, encoder, head, device):
     encoder.eval()
     head.eval()
 
@@ -36,7 +36,7 @@ def multiclass_accuracy(data_loader, encoder, head, target_std, device):
 
             x = encoder(features)
             outputs = head(x)
-            outputs = torch.sigmoid(outputs)
+            outputs = torch.softmax(outputs, dim=1)
 
             _, predicted = torch.max(outputs, 1)
             _, labels = torch.max(labels, 1)
@@ -71,40 +71,40 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
     if len(head_list) != len(data_loader_list) or len(head_list) != len(target_std_list):
         raise ValueError("length of head_list, data_loader_list and target_std_list should be equal")
 
-    if optimizer is not None:
-        encoder.train()  # 设置编码器为训练模式
+    if optimizer is not None:  # train mode
+        encoder.train()
         for _head in head_list:
-            _head.train()  # 设置头部为训练模式
-    else:
-        encoder.eval()  # 设置编码器为训练模式
+            _head.train()
+    else:   # eval mode
+        encoder.eval()
         for _head in head_list:
-            _head.eval()  # 设置头部为训练模式
+            _head.eval()
 
     total_loss = 0
 
     with torch.no_grad() if optimizer is None else torch.enable_grad():
         for batch_idx, data_loader in enumerate(zip(*data_loader_list)):
-            # inputs, targets = inputs.to(device), targets.to(device)  # 将输入数据和目标值移动到设备（如GPU）上
             loss = 0
             for (inputs, targets), head, loss_func in zip(data_loader, head_list, loss_func_list):
                 if optimizer is not None:
                     optimizer.zero_grad()  # 梯度清零
-                # 前向传播
+                # move data to device
                 inputs = inputs.to(device)
                 targets = targets.to(device)
+
                 features = encoder(inputs)
                 outputs = head(features)
 
                 if len(targets.shape) == 1:
-                    # 如果是一维张量，将其扩展为二维列向量
+                    # broadcast target
                     targets = targets.view(-1, 1)
 
                 cur_loss = loss_func(outputs, targets)
                 loss = loss+cur_loss
                 total_loss += cur_loss.item()
             if optimizer is not None:
-                loss.backward()  # 反向传播
-                optimizer.step()  # 更新模型参数
+                loss.backward()
+                optimizer.step()  # update parameters
         total_loss = total_loss**0.5  # *target_std_list[0]
     avg_loss = total_loss / len(data_loader_list[0])
     return avg_loss
@@ -121,7 +121,7 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
         all_parameters = all_parameters+list(_head.parameters())
     optimizer = optim.AdamW(all_parameters, lr=1e-3)
 
-    early_stop = 10
+    early_stop = 16
     epochs = 1000
 
     patience = early_stop
@@ -149,3 +149,54 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
             break
 
     return best_encoder, best_head_list
+
+
+def get_predicted_regression(encoder, head, data_loader, device):
+    encoder.eval()
+    head.eval()
+    predicted = None
+    with torch.no_grad():
+        for (inputs, targets) in data_loader:
+            inputs = inputs.to(device)
+            if predicted is None:
+                predicted = head(encoder(inputs)).cpu().numpy()
+            else:
+                predicted = np.append(predicted, head(encoder(inputs)).cpu().numpy())
+    return predicted
+
+
+def get_predicted_bin_classification(encoder, head, data_loader, device):
+    encoder.eval()
+    head.eval()
+    predicted = None
+    with torch.no_grad():
+        for inputs, labels in data_loader:
+            inputs = inputs.to(device)
+            x = encoder(inputs)
+            outputs = head(x)
+            outputs = torch.sigmoid(outputs)
+            if predicted is None:
+                predicted = (outputs >= 0.5).int().cpu().numpy()
+            else:
+                predicted = np.append(predicted, (outputs >= 0.5).int().cpu().numpy())
+    return predicted
+
+
+def get_predicted_multi_classification(encoder, head, data_loader, device):
+    encoder.eval()
+    head.eval()
+    predicted = None
+    with torch.no_grad():
+        for features, labels in data_loader:
+            features = features.to(device)
+
+            x = encoder(features)
+            outputs = head(x)
+            outputs = torch.softmax(outputs, dim=1)
+
+            _, predicted_label = torch.max(outputs, 1)
+            if predicted is None:
+                predicted = predicted_label.cpu().numpy()
+            else:
+                predicted = np.append(predicted, predicted_label.cpu().numpy())
+    return predicted

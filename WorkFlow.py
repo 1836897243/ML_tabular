@@ -3,8 +3,8 @@ import random
 import numpy as np
 import os
 import Models
-from CustomDataset import LoaderContainer, TaskType
-from Train_Eval import RMSE, multiclass_accuracy, binclass_accuracy, fit
+from LoaderContainer import LoaderContainer, TaskType
+from TrainEvalFunc import RMSE, multiclass_accuracy, binclass_accuracy, fit
 import pandas as pd
 
 
@@ -44,7 +44,7 @@ class WorkFlow:
         encoder, heads = fit(encoder=encoder, loss_func_list=pre_train_loss_func_list, head_list=pre_train_head_list,
                              train_loader_list=pre_train_loader_list, val_loader_list=pre_val_loader_list,
                              target_std_list=pre_train_target_std_list, device=device)
-        return encoder
+        return encoder, heads
 
     def train(self, encoder, device):
         target_head, loss_func = self.loader_container.getTrainHeadAndLossFunc(self.hidden_dim)
@@ -59,22 +59,28 @@ class WorkFlow:
 
     def eval(self, encoder, head, device):
         test_data_loader = self.loader_container.getTestLoader(self.batch_size)
+        val_data_loader = self.loader_container.getValLoader(self.batch_size)
         target_std = self.loader_container.getTargetStd()
         _1, _2, _3, task_type = self.loader_container.getInfo()
         if task_type == TaskType.regression:
             test_rmse = RMSE(data_loader=test_data_loader, encoder=encoder, head=head,
                              target_std=target_std, device=device)
-            print(f'测试集的RMSE为{test_rmse}')
-            return test_rmse
+            val_rmse = RMSE(data_loader=val_data_loader, encoder=encoder, head=head,
+                            target_std=target_std, device=device)
+            print(f'测试集的RMSE为{test_rmse} 验证集的RMSE为{val_rmse}')
+            return test_rmse, val_rmse
         elif task_type == TaskType.multiclass:
             test_acc = multiclass_accuracy(data_loader=test_data_loader, encoder=encoder, head=head,
-                                           target_std=target_std, device=device)
-            print(f'测试集准确率为{test_acc}')
-            return test_acc
+                                           device=device)
+            val_acc = multiclass_accuracy(data_loader=val_data_loader, encoder=encoder, head=head,
+                                          device=device)
+            print(f'测试集准确率为{test_acc} 验证集的准确率为{val_acc}')
+            return test_acc, val_acc
         elif task_type == TaskType.binclass:
             test_acc = binclass_accuracy(data_loader=test_data_loader, encoder=encoder, head=head, device=device)
-            print(f'测试集准确率为{test_acc}')
-            return test_acc
+            val_acc = binclass_accuracy(data_loader=val_data_loader, encoder=encoder, head=head, device=device)
+            print(f'测试集准确率为{test_acc} 验证集的准确率为{val_acc}')
+            return test_acc, val_acc
 
 
 

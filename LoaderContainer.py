@@ -15,11 +15,21 @@ class TaskType(Enum):
     multiclass = 3
 
 
-def CrossEntropyLossWithSigmoid():
+def CrossEntropyLossWithSoftmax():
     def custom_loss(output, target):
         return F.cross_entropy(output, target)
 
     return custom_loss
+
+
+class NRMSELoss(nn.Module):
+    def __init__(self):
+        super(NRMSELoss, self).__init__()
+
+    def forward(self, predicted, target):
+        # 计算均方误差
+        nrmse_loss = torch.sqrt(torch.mean((predicted - target)**2))
+        return nrmse_loss
 
 
 class CustomDataset(Dataset):
@@ -167,25 +177,25 @@ class LoaderContainer:
 
     def getPreTrainLoader(self, batch_size, index):
         train_features = np.copy(self.train_features)
-        train_features[:, index] = 0
         train_targets = np.copy(self.train_features[:, index])
 
-
+        feature_std = None
         # val
         val_features = np.copy(self.val_features)
-        val_features[:, index] = 0
-
         val_targets = np.copy(self.val_features[:, index])
         if index in self.num_list:
             feature_std = self.feature_std[index]
+            # if feature is numerical, set default value as 0
+            train_features[:, index] = 0
+            val_features[:, index] = 0
         elif index in self.cat_list:
             feature_std = -1
-            n_class = len(np.unique(train_targets.astype(np.int32)))#1
-            # set as a class which not in origin colume
+            n_class = len(np.unique(train_targets.astype(np.int32)))
+            # if the feature is categorical, set default value as a type not in dataset
             train_features[:, index] = n_class
             val_features[:, index] = n_class
-            train_targets = F.one_hot(torch.tensor(train_targets, dtype=int), num_classes=n_class).float()
-            val_targets = F.one_hot(torch.tensor(val_targets, dtype=int), num_classes=n_class).float()
+            train_targets = F.one_hot(torch.tensor(train_targets).long(), num_classes=n_class).float()
+            val_targets = F.one_hot(torch.tensor(val_targets).long(), num_classes=n_class).float()
         pre_train_dataset = CustomDataset(train_features, train_targets)
         val_dataset = CustomDataset(val_features, val_targets)
         return DataLoader(pre_train_dataset, batch_size, self.shuffle), \
@@ -197,18 +207,21 @@ class LoaderContainer:
         elif self.task_type == TaskType.binclass:
             return Head(hidden_dim, self.out_dim), nn.BCEWithLogitsLoss()
         elif self.task_type == TaskType.multiclass:
-            return Head(hidden_dim, self.out_dim), CrossEntropyLossWithSigmoid()
+            return Head(hidden_dim, self.out_dim), CrossEntropyLossWithSoftmax()
 
     def getPreTrainHeadAndLossFunc(self, hidden_dim, feature_index):
         if feature_index in self.num_list:
-            return Head(hidden_dim, 1), nn.MSELoss()
+            return Head(hidden_dim, 1), NRMSELoss()
         elif feature_index in self.cat_list:
             train_features = np.copy(self.train_features)
             num_class = len(np.unique(train_features[:, feature_index]))
-            return Head(hidden_dim, num_class), CrossEntropyLossWithSigmoid()
+            return Head(hidden_dim, num_class), CrossEntropyLossWithSoftmax()
 
     def getTargetStd(self):
         return self.target_std
 
     def getInfo(self):
         return self.input_num, self.num_list, self.cat_list, self.task_type
+
+    def getOutDim(self):
+        return self.out_dim
