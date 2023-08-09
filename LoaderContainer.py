@@ -150,18 +150,64 @@ class LoaderContainer:
             num_test = data_dir + 'N_test.npy'
             cat_test = data_dir + 'C_test.npy'
             num_test, cat_test = LoadInput(num_test, n_num_features, cat_test, n_cat_features)
-            self.train_features, self.val_features, self.test_features, self.feature_std = \
-                processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test)
 
             # targets
             train_target_dir = data_dir + 'y_train.npy'
-            self.train_targets = LoadTarget(train_target_dir)
+            train_targets = LoadTarget(train_target_dir)
             val_target_dir = data_dir + 'y_val.npy'
-            self.val_targets = LoadTarget(val_target_dir)
+            val_targets = LoadTarget(val_target_dir)
             test_target_dir = data_dir + 'y_test.npy'
-            self.test_targets = LoadTarget(test_target_dir)
+            test_targets = LoadTarget(test_target_dir)
+
+            '''
+            # shuffle  val and test
+            print(f'num_train.shape is {num_train.shape}')
+            print(f'num_val.shape is {num_val.shape}')
+            print(f'num_test.shape is {num_test.shape}')
+            all_num_feature = np.vstack((num_train, num_val, num_test))
+            print(f'num_feature.shape is {all_num_feature.shape}')
+            if cat_train is not None:
+                print(f'cat_train.shape is {cat_train.shape}')
+                print(f'cat_val.shape is {cat_val.shape}')
+                print(f'cat_test.shape is {cat_test.shape}')
+                all_cat_feature = np.vstack((cat_train, cat_val, cat_test))
+                print(f'cat_feature.shape is {all_cat_feature.shape}')
+
+            print(f'train_targets.shape is {train_targets.shape}')
+            print(f'val_targets.shape is {val_targets.shape}')
+            print(f'test_targets.shape is {test_targets.shape}')
+            all_target = np.concatenate((train_targets, val_targets, test_targets), axis=0)
+            print(f'all_target.shape is {all_target.shape}')
+
+            all_length = len(all_target)
+            train_length = len(num_train)
+            val_length = len(num_val)
+            test_length = len(num_test)
+
+            split_index1 = train_length
+            split_index2 = train_length + val_length
+
+            indices = torch.randperm(all_length)
+            shuffled_num_feature = all_num_feature[indices]
+            num_train = shuffled_num_feature[:split_index1]
+            num_val = shuffled_num_feature[split_index1:split_index2]
+            num_test = shuffled_num_feature[split_index2:]
+
+            if cat_train is not None:
+                shuffled_cat_feature = all_cat_feature[indices]
+                cat_train = shuffled_cat_feature[:split_index1]
+                cat_val = shuffled_cat_feature[split_index1:split_index2]
+                cat_test = shuffled_cat_feature[split_index2:]
+
+            shuffled_target = all_target[indices]
+            train_targets = shuffled_target[:split_index1]
+            val_targets = shuffled_target[split_index1:split_index2]
+            test_targets = shuffled_target[split_index2:]
+            '''
+            self.train_features, self.val_features, self.test_features, self.feature_std = \
+                processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test)
             self.train_targets, self.val_targets, self.test_targets, self.target_std = \
-                processTarget(self.train_targets, self.val_targets, self.test_targets, self.task_type, self.out_dim)
+                processTarget(train_targets, val_targets, test_targets, self.task_type, self.out_dim)
 
     def getTrainLoader(self, batch_size):
         train_dataset = CustomDataset(self.train_features, self.train_targets)

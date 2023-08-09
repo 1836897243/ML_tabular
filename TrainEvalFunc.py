@@ -121,7 +121,7 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
         all_parameters = all_parameters+list(_head.parameters())
     optimizer = optim.AdamW(all_parameters, lr=1e-3)
 
-    early_stop = 16
+    early_stop = 10
     epochs = 1000
 
     patience = early_stop

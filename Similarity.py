@@ -9,7 +9,7 @@ def Dot(array1: np.ndarray, array2: np.ndarray) -> np.ndarray:
 def Degree(array1: np.ndarray, array2: np.ndarray) -> float:
     norm1 = np.linalg.norm(array1)
     norm2 = np.linalg.norm(array2)
-    return np.arccos(np.dot(array1, array2)/(norm1 * norm2))
+    return np.arccos(np.dot(array1, array2)/(norm1 * norm2))/3.1415926*180
 
 
 def ManhattanDistance(array1: np.ndarray, array2: np.ndarray) -> float:

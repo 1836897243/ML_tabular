@@ -77,6 +77,8 @@ class Analyse:
         if len(feature_list) == 1:
             mean_feature = self.features[:, feature_list]
         else:
+            if len(self.features[:, feature_list]) == 0:
+                print(feature_list)
             mean_feature = np.mean(self.features[:, feature_list], axis=1)
 
         mean_feature = mean_feature.flatten()

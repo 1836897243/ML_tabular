@@ -63,10 +63,10 @@ class WorkFlow:
         target_std = self.loader_container.getTargetStd()
         _1, _2, _3, task_type = self.loader_container.getInfo()
         if task_type == TaskType.regression:
-            test_rmse = RMSE(data_loader=test_data_loader, encoder=encoder, head=head,
-                             target_std=target_std, device=device)
             val_rmse = RMSE(data_loader=val_data_loader, encoder=encoder, head=head,
                             target_std=target_std, device=device)
+            test_rmse = RMSE(data_loader=test_data_loader, encoder=encoder, head=head,
+                             target_std=target_std, device=device)
             print(f'测试集的RMSE为{test_rmse} 验证集的RMSE为{val_rmse}')
             return test_rmse, val_rmse
         elif task_type == TaskType.multiclass:

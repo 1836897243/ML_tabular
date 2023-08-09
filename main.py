@@ -28,7 +28,7 @@ else:
 # Hyper parameters
 batch_size = 128
 hidden_dim = 128
-shuffle = True
+shuffle = False
 
 
 # feature info
