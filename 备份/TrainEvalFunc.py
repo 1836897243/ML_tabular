@@ -87,6 +87,7 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
             loss = 0
             if optimizer is not None:
                 optimizer.zero_grad()  # 梯度清零
+            index = 0
             for (inputs, targets), head, loss_func in zip(data_loader, head_list, loss_func_list):
 
                 # move data to device
@@ -103,6 +104,7 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
                 cur_loss = loss_func(outputs, targets)
                 loss = loss+cur_loss
                 total_loss += cur_loss.item()
+
             if optimizer is not None:
                 loss.backward()
                 optimizer.step()  # update parameters
@@ -111,7 +113,7 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
     return avg_loss
 
 
-def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, target_std_list, device, early_stop):
+def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, target_std_list, device):
     if len(train_loader_list) == 0:
         return encoder, head_list
     best_val_loss = 1e30
@@ -122,7 +124,7 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
         all_parameters = all_parameters+list(_head.parameters())
     optimizer = optim.AdamW(all_parameters, lr=1e-3, weight_decay=0.1)
 
-    # early_stop = 16
+    early_stop = 16
     epochs = 1000
 
     patience = early_stop

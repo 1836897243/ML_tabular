@@ -27,7 +27,7 @@ else:
     device = torch.device("cpu")
 
 # Hyper parameters
-batch_size = 128
+batch_size = 10#128
 hidden_dim = 128
 shuffle = False
 
@@ -39,6 +39,7 @@ def try_mkdir(dir2make):
         print(f"相对路径目录'{dir2make}'已经存在。")
     except Exception as e:
         print(f"创建相对路径目录'{dir2make}'时发生错误：{e}")
+
 
 def train_and_save(workflow, analysis, feature_list_list, seed, save_file_dir):
 
@@ -89,10 +90,8 @@ def main():
         feature_list.sort()
         _Dot, _Degree, _Manhattan, _Euclidean = analysis.compute_similarity_regression(feature_list)
         if _Degree < 80 and feature_list not in feature_list_list:
-            print(feature_list)
             feature_list_list.append(feature_list)
             print(len(feature_list_list))
-    print(f'len(feature_list_list)={len(feature_list_list)}')
     workflow = WorkFlow(filedir+'/', batch_size, hidden_dim, shuffle)
     data_dir = filedir+'/data/lower80'
     try_mkdir(data_dir)

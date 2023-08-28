@@ -86,12 +86,18 @@ def main():
     while len(feature_list_list) < count:
         feature_num = random.randint(0, 7)
         feature_list = random.sample(range(0, 8), feature_num)
-        feature_list.sort()
         _Dot, _Degree, _Manhattan, _Euclidean = analysis.compute_similarity_regression(feature_list)
         if _Degree < 80 and feature_list not in feature_list_list:
-            print(feature_list)
             feature_list_list.append(feature_list)
             print(len(feature_list_list))
+    feature_list_list=[
+        [1, 2, 3],
+        [1, 3, 2],
+        [2, 1, 3],
+        [2, 3, 1],
+        [3, 1, 2],
+        [3, 2, 1],
+    ]
     print(f'len(feature_list_list)={len(feature_list_list)}')
     workflow = WorkFlow(filedir+'/', batch_size, hidden_dim, shuffle)
     data_dir = filedir+'/data/lower80'

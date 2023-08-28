@@ -28,18 +28,11 @@ class WorkFlow:
         pre_val_loader_list = []
         pre_train_target_std_list = []
         pre_train_loss_func_list = []  # nn.MSELoss()
-
-        all_pre_train_head_list, all_pre_train_loss_func_list = \
-            self.loader_container.getAllPreTrainHeadAndLossFuncList(self.hidden_dim)
-
         for feature_index in feature_list:
-            # pre_train_head, pre_train_loss_func = \
-            #    self.loader_container.getPreTrainHeadAndLossFunc(self.hidden_dim, feature_index)
-            # pre_train_head_list.append(pre_train_head.to(device))
-            # pre_train_loss_func_list.append(pre_train_loss_func)
-
-            pre_train_head_list.append(all_pre_train_head_list[feature_index].to(device))
-            pre_train_loss_func_list.append(all_pre_train_loss_func_list[feature_index])
+            pre_train_head, pre_train_loss_func = \
+                self.loader_container.getPreTrainHeadAndLossFunc(self.hidden_dim, feature_index)
+            pre_train_head_list.append(pre_train_head.to(device))
+            pre_train_loss_func_list.append(pre_train_loss_func)
 
             pre_train_loader, pre_val_loader, pre_train_target_std = self.loader_container.getPreTrainLoader(
                 self.batch_size,
@@ -50,7 +43,7 @@ class WorkFlow:
 
         encoder, heads = fit(encoder=encoder, loss_func_list=pre_train_loss_func_list, head_list=pre_train_head_list,
                              train_loader_list=pre_train_loader_list, val_loader_list=pre_val_loader_list,
-                             target_std_list=pre_train_target_std_list, device=device, early_stop=16)
+                             target_std_list=pre_train_target_std_list, device=device)
         return encoder, heads
 
     def train(self, encoder, device):
@@ -60,8 +53,8 @@ class WorkFlow:
         train_loader = self.loader_container.getTrainLoader(self.batch_size)
         val_data_loader = self.loader_container.getValLoader(self.batch_size)
         encoder, head_list = fit(encoder=encoder, loss_func_list=[loss_func], head_list=[target_head],
-                                 train_loader_list=[train_loader], val_loader_list=[val_data_loader],
-                                 target_std_list=[target_std], device=device, early_stop=8)
+                                 train_loader_list=[train_loader],
+                                 val_loader_list=[val_data_loader], target_std_list=[target_std], device=device)
         return encoder, head_list[0]
 
     def eval(self, encoder, head, device):

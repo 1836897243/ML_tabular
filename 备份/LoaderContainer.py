@@ -263,21 +263,6 @@ class LoaderContainer:
             num_class = len(np.unique(train_features[:, feature_index]))
             return Head(hidden_dim, num_class), CrossEntropyLossWithSoftmax()
 
-    def getAllPreTrainHeadAndLossFuncList(self, hidden_dim):
-        all_pre_train_head_list = []
-        all_pre_train_loss_func_list = []
-        feature_num = len(self.cat_list)+len(self.num_list)
-        for feature_index in range(feature_num):
-            if feature_index in self.num_list:
-                all_pre_train_head_list.append(Head(hidden_dim, 1))
-                all_pre_train_loss_func_list.append(NRMSELoss())
-            elif feature_index in self.cat_list:
-                train_features = np.copy(self.train_features)
-                num_class = len(np.unique(train_features[:, feature_index]))
-                all_pre_train_head_list.append(Head(hidden_dim, num_class))
-                all_pre_train_loss_func_list.append(CrossEntropyLossWithSoftmax())
-        return all_pre_train_head_list, all_pre_train_loss_func_list
-
     def getTargetStd(self):
         return self.target_std
 
