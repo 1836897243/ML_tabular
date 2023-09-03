@@ -117,9 +117,10 @@ def processTarget(tar_train, tar_val, tar_test, task_type, n_class):
 
 
 class LoaderContainer:
-    def __init__(self, data_dir, shuffle):
+    def __init__(self, dataset_dir, batch_size, shuffle):
         self.shuffle = shuffle
-        info_json = data_dir + 'info.json'
+        self.batch_size = batch_size
+        info_json = dataset_dir + 'info.json'
         with open(info_json, 'r') as f:
             info = json.load(f)
             n_num_features = info['n_num_features']
@@ -139,24 +140,24 @@ class LoaderContainer:
                 self.out_dim = info['n_classes']
 
             # feature
-            num_train = data_dir + 'N_train.npy'
-            cat_train = data_dir + 'C_train.npy'
+            num_train = dataset_dir + 'N_train.npy'
+            cat_train = dataset_dir + 'C_train.npy'
             num_train, cat_train = LoadInput(num_train, n_num_features, cat_train, n_cat_features)
 
-            num_val = data_dir + 'N_val.npy'
-            cat_val = data_dir + 'C_val.npy'
+            num_val = dataset_dir + 'N_val.npy'
+            cat_val = dataset_dir + 'C_val.npy'
             num_val, cat_val = LoadInput(num_val, n_num_features, cat_val, n_cat_features)
 
-            num_test = data_dir + 'N_test.npy'
-            cat_test = data_dir + 'C_test.npy'
+            num_test = dataset_dir + 'N_test.npy'
+            cat_test = dataset_dir + 'C_test.npy'
             num_test, cat_test = LoadInput(num_test, n_num_features, cat_test, n_cat_features)
 
             # targets
-            train_target_dir = data_dir + 'y_train.npy'
+            train_target_dir = dataset_dir + 'y_train.npy'
             train_targets = LoadTarget(train_target_dir)
-            val_target_dir = data_dir + 'y_val.npy'
+            val_target_dir = dataset_dir + 'y_val.npy'
             val_targets = LoadTarget(val_target_dir)
-            test_target_dir = data_dir + 'y_test.npy'
+            test_target_dir = dataset_dir + 'y_test.npy'
             test_targets = LoadTarget(test_target_dir)
 
             '''
@@ -209,19 +210,19 @@ class LoaderContainer:
             self.train_targets, self.val_targets, self.test_targets, self.target_std = \
                 processTarget(train_targets, val_targets, test_targets, self.task_type, self.out_dim)
 
-    def getTrainLoader(self, batch_size):
+    def getTrainLoader(self):
         train_dataset = CustomDataset(self.train_features, self.train_targets)
-        return DataLoader(train_dataset, batch_size, self.shuffle)
+        return DataLoader(train_dataset, self.batch_size, self.shuffle)
 
-    def getValLoader(self, batch_size):
+    def getValLoader(self):
         val_dataset = CustomDataset(self.val_features, self.val_targets)
-        return DataLoader(val_dataset, batch_size, self.shuffle)
+        return DataLoader(val_dataset, self.batch_size, self.shuffle)
 
-    def getTestLoader(self, batch_size):
+    def getTestLoader(self):
         test_dataset = CustomDataset(self.test_features, self.test_targets)
-        return DataLoader(test_dataset, batch_size, self.shuffle)
+        return DataLoader(test_dataset, self.batch_size, self.shuffle)
 
-    def getPreTrainLoader(self, batch_size, index):
+    def getPreTrainLoader(self, index):
         train_features = np.copy(self.train_features)
         train_targets = np.copy(self.train_features[:, index])
 
@@ -244,8 +245,8 @@ class LoaderContainer:
             val_targets = F.one_hot(torch.tensor(val_targets).long(), num_classes=n_class).float()
         pre_train_dataset = CustomDataset(train_features, train_targets)
         val_dataset = CustomDataset(val_features, val_targets)
-        return DataLoader(pre_train_dataset, batch_size, self.shuffle), \
-               DataLoader(val_dataset, batch_size, self.shuffle), feature_std
+        return DataLoader(pre_train_dataset, self.batch_size, self.shuffle), \
+               DataLoader(val_dataset, self.batch_size, self.shuffle), feature_std
 
     def getTrainHeadAndLossFunc(self, hidden_dim):
         if self.task_type == TaskType.regression:

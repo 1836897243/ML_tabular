@@ -92,6 +92,7 @@ class Encoder(nn.Module):
         return outs
 
     def build_model(self):
+        assert (self.model_type == 'MLP' or self.model_type == 'ResNet')
         if self.model_type == 'MLP':
             self.encoder = MLP(
                 self.input_dim, self.hidden_dim

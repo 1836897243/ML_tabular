@@ -9,12 +9,10 @@ import pandas as pd
 
 
 class WorkFlow:
-    def __init__(self, fileDir, batch_size, hidden_dim, shuffle):
-        self.fileDir = fileDir
-        self.loader_container = LoaderContainer(fileDir, shuffle)
-        self.batch_size = batch_size
+    def __init__(self, loader_container, hidden_dim, encoder_type: str):
+        self.loader_container = loader_container
         self.hidden_dim = hidden_dim
-        self.shuffle = shuffle
+        self.encoder_type = encoder_type
 
     def get_feature_num(self):
         input_num, _1, _2, _3 = self.loader_container.getInfo()
@@ -22,7 +20,7 @@ class WorkFlow:
 
     def pre_train(self, feature_list, device):
         input_num, num_list, cat_list, task_type = self.loader_container.getInfo()
-        encoder = Models.Encoder('ResNet', input_num, self.hidden_dim, num_list, cat_list).to(device)
+        encoder = Models.Encoder(self.encoder_type, input_num, self.hidden_dim, num_list, cat_list).to(device)
         pre_train_head_list = []
         pre_train_loader_list = []
         pre_val_loader_list = []
@@ -41,9 +39,8 @@ class WorkFlow:
             pre_train_head_list.append(all_pre_train_head_list[feature_index].to(device))
             pre_train_loss_func_list.append(all_pre_train_loss_func_list[feature_index])
 
-            pre_train_loader, pre_val_loader, pre_train_target_std = self.loader_container.getPreTrainLoader(
-                self.batch_size,
-                feature_index)
+            pre_train_loader, pre_val_loader, pre_train_target_std = \
+                self.loader_container.getPreTrainLoader(feature_index)
             pre_train_loader_list.append(pre_train_loader)
             pre_val_loader_list.append(pre_val_loader)
             pre_train_target_std_list.append(pre_train_target_std)
@@ -57,16 +54,17 @@ class WorkFlow:
         target_head, loss_func = self.loader_container.getTrainHeadAndLossFunc(self.hidden_dim)
         target_head = target_head.to(device)
         target_std = self.loader_container.getTargetStd()
-        train_loader = self.loader_container.getTrainLoader(self.batch_size)
-        val_data_loader = self.loader_container.getValLoader(self.batch_size)
+        train_loader = self.loader_container.getTrainLoader()
+        val_data_loader = self.loader_container.getValLoader()
         encoder, head_list = fit(encoder=encoder, loss_func_list=[loss_func], head_list=[target_head],
                                  train_loader_list=[train_loader], val_loader_list=[val_data_loader],
-                                 target_std_list=[target_std], device=device, early_stop=8)
+                                 target_std_list=[target_std], device=device, early_stop=16)
+
         return encoder, head_list[0]
 
     def eval(self, encoder, head, device):
-        test_data_loader = self.loader_container.getTestLoader(self.batch_size)
-        val_data_loader = self.loader_container.getValLoader(self.batch_size)
+        test_data_loader = self.loader_container.getTestLoader()
+        val_data_loader = self.loader_container.getValLoader()
         target_std = self.loader_container.getTargetStd()
         _1, _2, _3, task_type = self.loader_container.getInfo()
         if task_type == TaskType.regression:

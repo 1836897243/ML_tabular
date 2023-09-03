@@ -1,134 +1,96 @@
-import torch
 import random
-import numpy as np
-import os
-from WorkFlow import WorkFlow
 import pandas as pd
-from itertools import combinations
-# 设定随机种子
+from Analyse import Analyse
+from LoaderContainer import LoaderContainer
+import torch.multiprocessing
+import time
+from train_save_eval_models import eval_from_dir, train_and_save_one_model
+from train_save_eval_models import setRandomSeed
+def generate_feature_combination_regression(loader_container: LoaderContainer, count, lower_val, upper_val):
+    analysis = Analyse(loader_container)
+    # generate feature_list
+    feature_list_list = []
+    _1, num_list, cat_list, _2 = loader_container.getInfo()
+    while len(feature_list_list) < count:
+        feature_num = random.randint(1, len(num_list) - 1)
+        feature_list = random.sample(range(0, len(num_list)), feature_num)
+        feature_list.sort()
+        _Degree = analysis.compute_degree_regression(feature_list)
+        if upper_val > _Degree > lower_val and feature_list not in feature_list_list:
+            feature_list_list.append(feature_list)
+    feature_list_list.append([])
+    return feature_list_list
+
+
+def train_and_save(dataset_dir, encoder_type, feature_list_list,dir_name2save,
+                   seed, batch_size, hidden_dim, shuffle):
+
+    for feature_list in feature_list_list:
+        train_and_save_one_model(dataset_dir, dir_name2save, encoder_type, feature_list,
+                                                seed, batch_size, hidden_dim, shuffle)
+        '''
+    processes = []
+    for feature_list in feature_list_list:
+        process = torch.multiprocessing.Process(target=train_and_save_one_model,
+                                          args=(dataset_dir, dir_name2save, encoder_type, feature_list,
+                                                seed, batch_size, hidden_dim, shuffle))
+        processes.append(process)
+        process.start()
+
+        # waitting for process finish
+        for process in processes:
+            process.join()
+        '''
+
+
 Seed = 0
-
-
-def setRandomSeed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-    os.environ['PYTHONHASHSEED'] = str(seed)
-
-
-# cuda
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-else:
-    device = torch.device("cpu")
-
 # Hyper parameters
-batch_size = 128
-hidden_dim = 128
-shuffle = False
+Batch_size = 128
+Hidden_dim = 128
+Shuffle = False
 
+if __name__ == '__main__':
+    setRandomSeed(0)
+    dataset_dir = 'dataset/jannis/'
+    loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size, shuffle=Shuffle)
+    count = 70
+    lower_val = 90
+    upper_val = 180
+    encoder_type = 'ResNet'
 
-# feature info
-file_features ={
-    'fileDir':  ['dataset/adult'],#['dataset/california_housing', 'dataset/adult', 'dataset/helena'],
-    'features': {
-        'features_for_1': [
-    #        range(8),
-            range(14),
-    #        range(27),
-        ],
-        'features_better_for_2': [
-    #            [0, 1, 6],
-    #            [10, 8, 9],
-    #            [14, 23, 12, 25],
-                ],
-        'features_worse_for_2': [
-    #            [7, 5, 2, 4, 3],
-    #            [1, 4, 5, 12, 2],
-    #            [10, 5, 7, 22, 8],
-                ],
+    start = time.perf_counter()
 
-        'features_better_for_3': [
-    #        [0, 1, 6, 3],
-    #        [2, 6, 8, 9, 10],
-    #        [10, 12, 14, 22, 23],
-            ],
-        'features_worse_for_3': [
-    #        [7, 5, 2, 4],
-    #        [1, 2, 4, 5, 12],
-    #        [5, 7, 8, 10, 25],
-        ]
-    },
-    'choosen_num': [1]#, 2, 2, 3, 3]
-}
+    # get feature combinations
+    feature_list_list = generate_feature_combination_regression(
+        loader_container, count=count, lower_val=lower_val, upper_val=upper_val)
+    print('feature combinations to pre train:')
+    print(feature_list_list)
+    dir_name2save = '(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)'
 
+    # train models and save
+    train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, feature_list_list=feature_list_list,
+                   dir_name2save=dir_name2save, seed=Seed, batch_size=Batch_size, hidden_dim=Hidden_dim, shuffle=Shuffle)
 
-def try_mkdir(dir2make):
-    try:
-        os.mkdir(dir2make)
-    except FileExistsError:
-        print(f"相对路径目录'{dir2make}'已经存在。")
-    except Exception as e:
-        print(f"创建相对路径目录'{dir2make}'时发生错误：{e}")
+    # eval the model and compute similarity, finally save to excel
+    computed_data_dir = dataset_dir + dir_name2save + '/'
+    test, val, feature_list_list = eval_from_dir(computed_data_dir, loader_container)
 
+    analyse = Analyse(loader_container)
+    degree = [analyse.compute_degree_regression(feature_list) for feature_list in feature_list_list]
 
-def train_and_save(workflow, features, choose_num, seed, save_file_dir):
-
+    # save data to excel
     result = {
-        'feature': [],
-        'test_metrics': [],
-        'val_metrics': []
+        'feature': feature_list_list,
+        'test_metrics': test,
+        'val_metrics': val,
+        'Degree': degree
     }
-    if choose_num <= 0 or choose_num >= len(features):
-        return
-    feature_tuple_list = list(combinations(features, choose_num))
-    if choose_num == 1:
-        feature_tuple_list.insert(0, [])
-
-    for feature_tuple in feature_tuple_list:
-        feature_list = list(feature_tuple)
-        setRandomSeed(seed)
-        encoder, feature_heads = workflow.pre_train(feature_list, device=device)
-        encoder, head = workflow.train(encoder, device=device)
-        test_metric, val_metric = workflow.eval(encoder, head, device=device)
-
-        feature_str = '(' + ','.join(str(item) for item in feature_tuple)+')'
-        result['feature'].append(feature_str)
-        result['test_metrics'].append(test_metric)
-        result['val_metrics'].append(val_metric)
-
-        # save model to excel file
-        cur_feature_dir = save_file_dir+'/'+feature_str
-        try_mkdir(cur_feature_dir)
-        cur_feature_dir = cur_feature_dir+'/'
-        torch.save(encoder, cur_feature_dir+'encoder' + '.pt')
-        torch.save(head, cur_feature_dir+'head'+'.pt')
-        for feature_head, feature_index in zip(feature_heads, feature_list):
-            torch.save(feature_head, cur_feature_dir+str(feature_index)+'feature_head'+'.pt')
-
-    # save data to excel file
     df = pd.DataFrame(result)
-    df.to_excel(save_file_dir+'/data.xlsx', index=False)
+    df.to_excel(computed_data_dir+'data.xlsx', index=False)
 
-
-
-for FileIndex, FileDir in enumerate(file_features['fileDir']):
-    print(FileDir)
-    DataDir = FileDir+'/data'
-    try_mkdir(DataDir)
-    setRandomSeed(Seed)
-    workflow = WorkFlow(FileDir+'/', batch_size, hidden_dim, shuffle)
-    for index, (name, features_list) in enumerate(file_features['features'].items()):
-        features = features_list[FileIndex]
-        choosen_num = file_features['choosen_num'][index]
-        feature_save_dir = DataDir+'/'+name
-        try_mkdir(feature_save_dir)
-        train_and_save(workflow, features, choosen_num, Seed, feature_save_dir)
-
-
+    # print cost of time
+    end = time.perf_counter()
+    print("运行耗时", end - start)
 
 
 
