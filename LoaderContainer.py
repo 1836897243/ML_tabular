@@ -126,7 +126,7 @@ class LoaderContainer:
             n_num_features = info['n_num_features']
             n_cat_features = info['n_cat_features']
             self.input_num = n_num_features + n_cat_features
-            self.num_list = list(range(n_num_features))
+            self.num_list = list(range(0, n_num_features))
             self.cat_list = list(range(n_num_features, n_num_features + n_cat_features))
             self.out_dim = 0
             if info['task_type'] == 'regression':

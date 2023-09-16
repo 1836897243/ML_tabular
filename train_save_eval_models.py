@@ -8,8 +8,22 @@ import pandas as pd
 from itertools import combinations
 from Analyse import Analyse
 from TrainEvalFunc import eval
+from matplotlib import pyplot as plt
+
+def save_image(epochs, train_losses, val_losses, file_name):
+    if epochs == 0:
+        return
+    fig, ax = plt.subplots()
+    x = np.arange(0, len(train_losses))
 
 
+    ax.plot(x, train_losses, label='train')
+    ax.plot(x, val_losses, label='val')
+    ax.set_xlabel('epochs')
+    ax.set_ylabel('loss')
+    plt.legend()
+    plt.savefig(file_name, bbox_inches='tight', dpi=300, format='svg')
+    plt.close(fig)
 def setRandomSeed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -38,6 +52,8 @@ def eval_from_dir(directory: str, loader_container: LoaderContainer):
 
     test = []
     val = []
+    epochs_num_pre_train = []
+    epochs_num_train = []
     feature_list_list = []
     # encoder.pt and head.pt were saved by train_save_eval_models.py
     contents = os.listdir(directory)
@@ -57,9 +73,16 @@ def eval_from_dir(directory: str, loader_container: LoaderContainer):
             trained_encoder = torch.load(directory + item + '/encoder.pt')
             trained_head = torch.load(directory + item + '/head.pt')
             test_data, val_data = eval(loader_container, trained_encoder, trained_head, device)
+            # epoch_info
+            epoch_info_file_name = 'epoch_info.csv'
+            epochs_info = np.loadtxt(directory + item + '/' + epoch_info_file_name, delimiter=',')
+            print('------')
+            print(epochs_info)
+            epochs_num_pre_train.append(epochs_info[0])
+            epochs_num_train.append(epochs_info[1])
             test.append(test_data)
             val.append(val_data)
-    return test, val, feature_list_list
+    return test, val, epochs_num_pre_train, epochs_num_train, feature_list_list
 
 
 def train_and_save_one_model(dataset_dir, dir_name2save, encoder_type, feature_list, seed, batch_size, hidden_dim, shuffle):
@@ -95,28 +118,38 @@ def train_and_save_one_model(dataset_dir, dir_name2save, encoder_type, feature_l
     '''
     # cuda
     if torch.cuda.is_available():
-        device = torch.device("cuda")
+        device = torch.device("cuda:0")
     else:
         device = torch.device("cpu")
 
     save_file_dir = dataset_dir + dir_name2save + '/'
     try_mkdir(save_file_dir)
 
+    # save model to excel file
+    feature_str = str(feature_list)
+    cur_feature_dir = save_file_dir + feature_str + '/'
+    try_mkdir(cur_feature_dir)
+    encoder_file = cur_feature_dir + 'encoder' + '.pt'
+    head_file = cur_feature_dir + 'head' + '.pt'
+
+    if os.path.exists(encoder_file) and os.path.exists(head_file):
+        return
     loader_container = LoaderContainer(dataset_dir, batch_size, shuffle)
     analysis = Analyse(loader_container)
     setRandomSeed(seed)
     workflow = WorkFlow(loader_container, hidden_dim, encoder_type)
     setRandomSeed(seed)
-    encoder, feature_heads = workflow.pre_train(feature_list, device=device)
-    encoder, head = workflow.train(encoder, device=device)
+    encoder, feature_heads, epochs_pre_train, pre_train_loss_list, pre_val_loss_list \
+        = workflow.pre_train(feature_list, device=device)
+    encoder, head, epochs_train, train_loss_list, val_loss_list = workflow.train(encoder, device=device)
     test_metric, val_metric = workflow.eval(encoder, head, device=device)
-
-    feature_str = str(feature_list)
-
-    # save model to excel file
-    cur_feature_dir = save_file_dir + feature_str + '/'
-    try_mkdir(cur_feature_dir)
-    torch.save(encoder, cur_feature_dir + 'encoder' + '.pt')
-    torch.save(head, cur_feature_dir + 'head' + '.pt')
+    save_image(epochs_pre_train, pre_train_loss_list, pre_val_loss_list, cur_feature_dir + 'pre_train.svg')
+    save_image(epochs_train, train_loss_list, val_loss_list, cur_feature_dir + 'train.svg')
+    torch.save(encoder, encoder_file)
+    torch.save(head, head_file)
     for feature_head, feature_index in zip(feature_heads, feature_list):
         torch.save(feature_head, cur_feature_dir + str(feature_index) + '-feature_head' + '.pt')
+    # save epochs info
+    epochs_info = np.array([epochs_pre_train, epochs_train])
+    epoch_info_file_name = cur_feature_dir + 'epoch_info.csv'
+    np.savetxt(fname=epoch_info_file_name, X=epochs_info, delimiter=',')

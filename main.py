@@ -1,4 +1,6 @@
 import random
+
+import numpy as np
 import pandas as pd
 from Analyse import Analyse
 from LoaderContainer import LoaderContainer
@@ -10,15 +12,19 @@ def generate_feature_combination_regression(loader_container: LoaderContainer, c
     analysis = Analyse(loader_container)
     # generate feature_list
     feature_list_list = []
+    _degress = []
     _1, num_list, cat_list, _2 = loader_container.getInfo()
     while len(feature_list_list) < count:
-        feature_num = random.randint(1, len(num_list) - 1)
+        feature_num = random.randint(1, 10)
         feature_list = random.sample(range(0, len(num_list)), feature_num)
         feature_list.sort()
         _Degree = analysis.compute_degree_regression(feature_list)
         if upper_val > _Degree > lower_val and feature_list not in feature_list_list:
             feature_list_list.append(feature_list)
+            _degress.append(_Degree)
     feature_list_list.append([])
+    _degress.sort()
+    print(_degress)
     return feature_list_list
 
 
@@ -26,6 +32,7 @@ def train_and_save(dataset_dir, encoder_type, feature_list_list,dir_name2save,
                    seed, batch_size, hidden_dim, shuffle):
 
     for feature_list in feature_list_list:
+        print(f'current feature_list:{feature_list}')
         train_and_save_one_model(dataset_dir, dir_name2save, encoder_type, feature_list,
                                                 seed, batch_size, hidden_dim, shuffle)
         '''
@@ -51,42 +58,45 @@ Shuffle = False
 
 if __name__ == '__main__':
     setRandomSeed(0)
-    dataset_dir = 'dataset/jannis/'
+    '''only for regression task and numerical features, if there are categorical features, check code in model'''
+    dataset_dir = 'dataset/regression/superconductivty_data/'
     loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size, shuffle=Shuffle)
-    count = 70
-    lower_val = 90
-    upper_val = 180
-    encoder_type = 'ResNet'
+    count = 100
+    lower_val = 0
+    upper_val = 90
+    encoder_types = ['MLP', 'ResNet']
 
     start = time.perf_counter()
 
     # get feature combinations
     feature_list_list = generate_feature_combination_regression(
         loader_container, count=count, lower_val=lower_val, upper_val=upper_val)
-    print('feature combinations to pre train:')
-    print(feature_list_list)
-    dir_name2save = '(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)'
+    for encoder_type in encoder_types:
+        dir_name2save = '(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_reg'
 
-    # train models and save
-    train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, feature_list_list=feature_list_list,
-                   dir_name2save=dir_name2save, seed=Seed, batch_size=Batch_size, hidden_dim=Hidden_dim, shuffle=Shuffle)
+        # train models and save
+        train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, feature_list_list=feature_list_list,
+                       dir_name2save=dir_name2save, seed=Seed, batch_size=Batch_size, hidden_dim=Hidden_dim, shuffle=Shuffle)
 
-    # eval the model and compute similarity, finally save to excel
-    computed_data_dir = dataset_dir + dir_name2save + '/'
-    test, val, feature_list_list = eval_from_dir(computed_data_dir, loader_container)
+        # eval the model and compute similarity, finally save to excel
+        computed_data_dir = dataset_dir + dir_name2save + '/'
+        test, val, epoch_num_pre_train, epoch_num_train, feature_list_list = eval_from_dir(computed_data_dir, loader_container)
 
-    analyse = Analyse(loader_container)
-    degree = [analyse.compute_degree_regression(feature_list) for feature_list in feature_list_list]
+        analyse = Analyse(loader_container)
+        degree = [analyse.compute_degree_regression(feature_list) for feature_list in feature_list_list]
 
-    # save data to excel
-    result = {
-        'feature': feature_list_list,
-        'test_metrics': test,
-        'val_metrics': val,
-        'Degree': degree
-    }
-    df = pd.DataFrame(result)
-    df.to_excel(computed_data_dir+'data.xlsx', index=False)
+
+        # save data to excel
+        result = {
+            'feature': feature_list_list,
+            'test_metrics': test,
+            'val_metrics': val,
+            'Degree': degree,
+            'epcoh_num_pre_train': epoch_num_pre_train,
+            'epoch_num_train': epoch_num_train
+        }
+        df = pd.DataFrame(result)
+        df.to_excel(computed_data_dir+'data.xlsx', index=False)
 
     # print cost of time
     end = time.perf_counter()

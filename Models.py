@@ -4,6 +4,17 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+import math
+import typing as ty
+from pathlib import Path
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from torch import Tensor
+
+import lib
 
 
 class MLP(nn.Module):
@@ -24,13 +35,19 @@ class MLP(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, input_dim, hid_dim):
+    def __init__(
+            self,
+            *,
+            input_dim: int,
+            hid_dim: int,
+            n_layers: int,
+            dropout: float):
         super(ResNet, self).__init__()
 
         self.input_layer = nn.Linear(input_dim, hid_dim)
-        layer_num = 7
+        layer_num = n_layers
         self.dropout_layer = nn.ModuleList(
-            [nn.Dropout(p=0.2) for _ in range(layer_num)]
+            [nn.Dropout(p=dropout) for _ in range(layer_num)]
         )
         self.layers = nn.ModuleList(
             [nn.Linear(hid_dim, hid_dim) for _ in range(layer_num)]
@@ -44,6 +61,67 @@ class ResNet(nn.Module):
 
         return hid
 
+class ResNet2(nn.Module):
+    def __init__(
+        self,
+        *,
+        input_dim: int,
+        hidden_dim: int,
+        n_layers: int,
+        normalization: str,
+        hidden_dropout: float,
+        residual_dropout: float,
+    ) -> None:
+        super().__init__()
+
+        def make_normalization():
+            return {'batchnorm': nn.BatchNorm1d, 'layernorm': nn.LayerNorm}[
+                normalization
+            ](hidden_dim)
+
+        self.main_activation = F.relu  # relu
+        self.last_activation = F.relu  # relu
+        self.residual_dropout = residual_dropout  # true
+        self.hidden_dropout = hidden_dropout
+
+        self.first_layer = nn.Linear(input_dim, hidden_dim)
+        self.layers = nn.ModuleList(
+            [
+                nn.ModuleDict(
+                    {
+                        'norm': make_normalization(),
+                        'linear0': nn.Linear(
+                            hidden_dim, hidden_dim
+                        ),
+                        'linear1': nn.Linear(hidden_dim, hidden_dim),
+                    }
+                )
+                for _ in range(n_layers)
+            ]
+        )
+        self.last_normalization = make_normalization()
+        # self.head = nn.Linear(d, d_out)
+
+    def forward(self, x) -> Tensor:
+
+        x = self.first_layer(x)
+        for layer in self.layers:
+            layer = ty.cast(ty.Dict[str, nn.Module], layer)
+            z = x
+            z = layer['norm'](z)
+            z = layer['linear0'](z)
+            z = self.main_activation(z)
+            if self.hidden_dropout:
+                z = F.dropout(z, self.hidden_dropout, self.training)
+            z = layer['linear1'](z)
+            if self.residual_dropout:
+                z = F.dropout(z, self.residual_dropout, self.training)
+            x = x + z
+        x = self.last_normalization(x)
+        x = self.last_activation(x)
+        #   x = self.head(x)
+        #   x = x.squeeze(-1)
+        return x
 
 class Encoder(nn.Module):
     def __init__(self, model_type, input_num, hidden_dim, num_list, cat_list) -> None:
@@ -54,6 +132,7 @@ class Encoder(nn.Module):
         self.model_type = model_type
         self.num_list = num_list
         self.cat_list = cat_list
+        self.encoder = None
         self._build_preprocessor()
         self.build_model()
 
@@ -92,14 +171,26 @@ class Encoder(nn.Module):
         return outs
 
     def build_model(self):
-        assert (self.model_type == 'MLP' or self.model_type == 'ResNet')
+        assert (self.model_type == 'MLP' or self.model_type == 'ResNet' or self.model_type == 'ResNet2')
         if self.model_type == 'MLP':
             self.encoder = MLP(
                 self.input_dim, self.hidden_dim
             )
         elif self.model_type == 'ResNet':
             self.encoder = ResNet(
-                self.input_dim, self.hidden_dim
+                input_dim=self.input_dim,
+                hid_dim=self.hidden_dim,
+                n_layers=7,
+                dropout=0.2
+            )
+        elif self.model_type == 'ResNet2':
+            self.encoder = ResNet2(
+                input_dim=self.input_dim,
+                hidden_dim=self.hidden_dim,
+                n_layers=10,
+                normalization='batchnorm',
+                hidden_dropout=0.3,
+                residual_dropout=0.3,
             )
 
     def forward(self, inputs):

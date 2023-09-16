@@ -36,6 +36,7 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
 
                 # move data to device
                 inputs = inputs.to(device)
+                # print(inputs.device)
                 targets = targets.to(device)
 
                 features = encoder(inputs)
@@ -58,7 +59,9 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
 
 def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, target_std_list, device, early_stop):
     if len(train_loader_list) == 0:
-        return encoder, head_list
+        return encoder, head_list, 0, [], []
+    train_loss_list = []
+    val_loss_list = []
     best_val_loss = 1e30
     best_encoder = None
     best_head_list = None
@@ -72,6 +75,7 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
 
     patience = early_stop
 
+    epochs_num = 1000
     for eid in range(epochs):
         train_loss = run_one_epoch(
             optimizer=optimizer, encoder=encoder, loss_func_list=loss_func_list, head_list=head_list,
@@ -83,6 +87,8 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
 
         rmse = RMSE(val_loader_list[0], encoder, head_list[0], target_std_list[0], device)
 
+        train_loss_list.append(train_loss)
+        val_loss_list.append(val_loss)
         print(f'Epoch {eid}, train loss {train_loss}, val loss {val_loss}, rmse {rmse}')
 
         if val_loss < best_val_loss:
@@ -94,9 +100,10 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
             patience = patience - 1
 
         if patience == 0:
+            epochs_num = eid
             break
 
-    return best_encoder, best_head_list
+    return best_encoder, best_head_list, epochs_num, train_loss_list, val_loss_list
 
 
 # compute RMSE
