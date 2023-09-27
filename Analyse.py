@@ -44,6 +44,10 @@ class Analyse:
                 self.targets = np.append(self.targets, targets.numpy(), axis=0)
         _, self.num_list, self.cat_list, self.task_type = self.loader_container.getInfo()
 
+        self.degree_mean_feature = {}
+        self.mean_degree_feature = {}
+        self.dis_correlation = {}
+
     def eval_from_dir(self, directory: str):
         # cuda
         if torch.cuda.is_available():
@@ -58,7 +62,7 @@ class Analyse:
         for item in contents:
             if os.path.isdir(directory + item):
                 files = os.listdir(directory + item)
-                if 'encoder.pt' not in files or 'head.pt' not in files :
+                if 'encoder.pt' not in files or 'head.pt' not in files:
                     break
                 print(directory + item)
                 trained_encoder = torch.load(directory + item + '/encoder.pt')
@@ -68,7 +72,7 @@ class Analyse:
                 val.append(val_data)
         return test, val
 
-    def compute_degree_regression(self, feature_list):
+    def compute_degree_of_mean_numerical_features(self, feature_list):
         for index in feature_list:
             assert index in self.num_list
 
@@ -86,6 +90,36 @@ class Analyse:
 
         mean_feature = mean_feature.flatten()
         return Degree(mean_feature, self.targets)
+
+    def compute_mean_degree_of_numerical_features(self, feature_list):
+        if len(feature_list) == 0:
+            return 0
+
+        for index in feature_list:
+            assert index in self.num_list
+            if index not in self.mean_degree_feature:
+                self.mean_degree_feature[index] = Degree(self.features[:, index], self.targets)
+
+        # only one feature
+        degrees = [self.mean_degree_feature[index] for index in feature_list]
+        return np.mean(degrees)
+
+    def compute_distance_correlation(self, feature_list):
+        if len(feature_list) == 0:
+            return 0
+
+        _, num_list, cat_list, task_type = self.loader_container.getInfo()
+        target_categorical = True
+        if task_type == TaskType.regression:
+            target_categorical = False
+
+        for index in feature_list:
+            if index not in self.dis_correlation:
+                self.dis_correlation[index] = getDistanceCorrelation(self.features[:, index], index in cat_list,
+                                                                     self.targets, target_categorical)
+
+        correlations = [self.dis_correlation[index] for index in feature_list]
+        return np.mean(correlations)
 
     '''
     def compute_similarity_regression_predict(self, feature_list, file_dir, device):
@@ -177,7 +211,3 @@ class Analyse:
             scalar_target = np.argmax(self.targets, axis=1)
             return CatSimilarity(cat_feature, scalar_target, self.loader_container.getOutDim())
     '''
-
-
-
-

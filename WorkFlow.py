@@ -24,7 +24,6 @@ class WorkFlow:
         pre_train_head_list = []
         pre_train_loader_list = []
         pre_val_loader_list = []
-        pre_train_target_std_list = []
         pre_train_loss_func_list = []  # nn.MSELoss()
 
         all_pre_train_head_list, all_pre_train_loss_func_list = \
@@ -39,39 +38,37 @@ class WorkFlow:
             pre_train_head_list.append(all_pre_train_head_list[feature_index].to(device))
             pre_train_loss_func_list.append(all_pre_train_loss_func_list[feature_index])
 
-            pre_train_loader, pre_val_loader, pre_train_target_std = \
+            pre_train_loader, pre_val_loader = \
                 self.loader_container.getPreTrainLoader(feature_index)
             pre_train_loader_list.append(pre_train_loader)
             pre_val_loader_list.append(pre_val_loader)
-            pre_train_target_std_list.append(pre_train_target_std)
 
         encoder, heads, epochs, train_loss_list, val_loss_list = fit(encoder=encoder, loss_func_list=pre_train_loss_func_list, head_list=pre_train_head_list,
                              train_loader_list=pre_train_loader_list, val_loader_list=pre_val_loader_list,
-                             target_std_list=pre_train_target_std_list, device=device, early_stop=16)
+                             device=device, early_stop=16)
         return encoder, heads, epochs, train_loss_list, val_loss_list
 
     def train(self, encoder, device):
         target_head, loss_func = self.loader_container.getTrainHeadAndLossFunc(self.hidden_dim)
         target_head = target_head.to(device)
-        target_std = self.loader_container.getTargetStd()
         train_loader = self.loader_container.getTrainLoader()
         val_data_loader = self.loader_container.getValLoader()
         encoder, head_list, epochs, train_loss_list, val_loss_list = fit(encoder=encoder, loss_func_list=[loss_func], head_list=[target_head],
                                  train_loader_list=[train_loader], val_loader_list=[val_data_loader],
-                                 target_std_list=[target_std], device=device, early_stop=16)
+                                device=device, early_stop=16)
 
         return encoder, head_list[0], epochs, train_loss_list, val_loss_list
 
     def eval(self, encoder, head, device):
         test_data_loader = self.loader_container.getTestLoader()
         val_data_loader = self.loader_container.getValLoader()
-        target_std = self.loader_container.getTargetStd()
+        inverse_transform_func = self.loader_container.getInverseTransformFunc()
         _1, _2, _3, task_type = self.loader_container.getInfo()
         if task_type == TaskType.regression:
             val_rmse = RMSE(data_loader=val_data_loader, encoder=encoder, head=head,
-                            target_std=target_std, device=device)
+                            inverse_transform_func=inverse_transform_func, device=device)
             test_rmse = RMSE(data_loader=test_data_loader, encoder=encoder, head=head,
-                             target_std=target_std, device=device)
+                             inverse_transform_func=inverse_transform_func, device=device)
             print(f'测试集的RMSE为{test_rmse} 验证集的RMSE为{val_rmse}')
             return test_rmse, val_rmse
         elif task_type == TaskType.multiclass:

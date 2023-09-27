@@ -2,45 +2,45 @@ import torch
 import numpy as np
 
 
-def Dot(array1: np.ndarray, array2: np.ndarray) -> np.ndarray:
-    return np.dot(array1, array2)
-
-
 def Degree(array1: np.ndarray, array2: np.ndarray) -> float:
     norm1 = np.linalg.norm(array1)
     norm2 = np.linalg.norm(array2)
-    return np.arccos(np.dot(array1, array2)/(norm1 * norm2))/3.1415926*180
+    return np.arccos(np.dot(array1, array2) / (norm1 * norm2)) / 3.1415926 * 180
 
 
-def ManhattanDistance(array1: np.ndarray, array2: np.ndarray) -> float:
-    return np.linalg.norm(array1 - array2, ord=1)
+def getAdjacencyMatrix(S: np.array, categorical: bool):
+    if categorical is True:
+        S = S.astype(int)
+        A = S[:, np.newaxis] - S
+        A[A != 0] = 1
+    else:
+        A = (S[:, np.newaxis] - S) ** 2
+    return A
 
 
-def EuclideanDistance(array1: np.ndarray, array2: np.ndarray) -> float:
-    return np.linalg.norm(array1 - array2)
+def getDoubleCenteredMatrix(S: np.array, categorical: bool):
+    A = getAdjacencyMatrix(S, categorical)
+    N = S.shape[0]
+    Asl = np.sum(A, axis=0)
+    Ask = np.sum(A, axis=1)
+    Askl = np.sum(A)
+    A = A - Asl[:, np.newaxis] / N - Ask / N + Askl / (N * N)
+    return A
 
 
-def CatSimilarity(array: np.ndarray[int], target: np.ndarray[int], n_class: int) -> \
-        (np.ndarray, np.ndarray, np.ndarray, np.ndarray):
-    classes = []
-    class_counts = []
-    mode_feature = []
-    mode_value_counts = []
-    for a_class in range(n_class):
-        indexes = np.where(target == a_class)
-        arr = array[indexes]
+def getDistanceCovariance(S: np.array, S_categorical: bool, Z: np.array, Z_categorical: bool):
 
-        # get unique value and counts
-        unique_values, counts = np.unique(arr, return_counts=True)
-        # find the index of num appear most
-        mode_index = np.argmax(counts)
-        # get the the num appear most
-        mode_value = unique_values[mode_index]
-        # get its count
-        mode_count = counts[mode_index]
+    assert S.shape == Z.shape
+    N = S.shape[0]
+    ES = getDoubleCenteredMatrix(S, S_categorical)
+    EZ = getDoubleCenteredMatrix(Z, Z_categorical)
+    return np.sum(ES * EZ) / (N * N)
 
-        classes.append(a_class)
-        class_counts.append(len(arr))
-        mode_feature.append(mode_value)
-        mode_value_counts.append(mode_count)
-    return classes, class_counts, mode_feature, mode_value_counts
+
+def getDistanceCorrelation(S: np.array, S_categorical: bool, Z: np.array, Z_categorical: bool):
+    S = np.squeeze(S)
+    Z = np.squeeze(Z)
+    ZS = getDistanceCovariance(Z, Z_categorical, S, S_categorical)
+    ZZ = getDistanceCovariance(Z, Z_categorical, Z, Z_categorical)
+    SS = getDistanceCovariance(S, S_categorical, S, S_categorical)
+    return 0 if ZZ * SS == 0 else ZS / np.sqrt(ZZ * SS)

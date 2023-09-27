@@ -12,8 +12,8 @@ this file contains the functions used in training, evaluation and prediction
 
 
 # functions for train and eval
-def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_list, target_std_list, device):
-    if len(head_list) != len(data_loader_list) or len(head_list) != len(target_std_list):
+def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_list, device):
+    if len(head_list) != len(data_loader_list) :
         raise ValueError("length of head_list, data_loader_list and target_std_list should be equal")
 
     if optimizer is not None:  # train mode
@@ -52,12 +52,12 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
             if optimizer is not None:
                 loss.backward()
                 optimizer.step()  # update parameters
-        total_loss = total_loss ** 0.5  # *target_std_list[0]
+        total_loss = total_loss ** 0.5
     avg_loss = total_loss / len(data_loader_list[0])
     return avg_loss
 
 
-def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, target_std_list, device, early_stop):
+def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, device, early_stop):
     if len(train_loader_list) == 0:
         return encoder, head_list, 0, [], []
     train_loss_list = []
@@ -79,17 +79,16 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
     for eid in range(epochs):
         train_loss = run_one_epoch(
             optimizer=optimizer, encoder=encoder, loss_func_list=loss_func_list, head_list=head_list,
-            data_loader_list=train_loader_list, target_std_list=target_std_list, device=device)
+            data_loader_list=train_loader_list, device=device)
 
         val_loss = run_one_epoch(
             optimizer=None, encoder=encoder, loss_func_list=loss_func_list, head_list=head_list,
-            data_loader_list=val_loader_list, target_std_list=target_std_list, device=device)
+            data_loader_list=val_loader_list, device=device)
 
-        rmse = RMSE(val_loader_list[0], encoder, head_list[0], target_std_list[0], device)
 
         train_loss_list.append(train_loss)
         val_loss_list.append(val_loss)
-        print(f'Epoch {eid}, train loss {train_loss}, val loss {val_loss}, rmse {rmse}')
+        print(f'Epoch {eid}, train loss {train_loss}, val loss {val_loss}')
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -107,7 +106,7 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
 
 
 # compute RMSE
-def RMSE(data_loader, encoder, head, target_std, device):
+def RMSE(data_loader, encoder, head, inverse_transform_func, device):
     encoder.eval()
     head.eval()
     predictions = []
@@ -120,7 +119,10 @@ def RMSE(data_loader, encoder, head, target_std, device):
             outputs = torch.reshape(outputs, (-1,))
             predictions.extend(outputs.tolist())
             targets.extend(targets_batch.tolist())
-    rmse = mean_squared_error(targets, predictions) ** 0.5 * target_std
+    predictions = np.array(predictions)
+    predictions = inverse_transform_func(predictions.reshape(-1,1))
+    targets = inverse_transform_func(targets)
+    rmse = mean_squared_error(targets, predictions) ** 0.5
     return rmse
 
 
@@ -171,13 +173,13 @@ def multiclass_accuracy(data_loader, encoder, head, device):
 def eval(loader_container, encoder, head, device):
     test_data_loader = loader_container.getTestLoader()
     val_data_loader = loader_container.getValLoader()
-    target_std = loader_container.getTargetStd()
+    inverse_transform_func = loader_container.getInverseTransformFunc()
     _1, _2, _3, task_type = loader_container.getInfo()
     if task_type == TaskType.regression:
         val_rmse = RMSE(data_loader=val_data_loader, encoder=encoder, head=head,
-                        target_std=target_std, device=device)
+                        inverse_transform_func=inverse_transform_func, device=device)
         test_rmse = RMSE(data_loader=test_data_loader, encoder=encoder, head=head,
-                         target_std=target_std, device=device)
+                         inverse_transform_func=inverse_transform_func, device=device)
         print(f'测试集的RMSE为{test_rmse} 验证集的RMSE为{val_rmse}')
         return test_rmse, val_rmse
     elif task_type == TaskType.multiclass:

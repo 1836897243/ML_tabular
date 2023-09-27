@@ -15,16 +15,16 @@ def generate_feature_combination_regression(loader_container: LoaderContainer, c
     _degress = []
     _1, num_list, cat_list, _2 = loader_container.getInfo()
     while len(feature_list_list) < count:
-        feature_num = random.randint(1, 10)
+        feature_num = random.randint(1, 10)#len(num_list))
         feature_list = random.sample(range(0, len(num_list)), feature_num)
         feature_list.sort()
-        _Degree = analysis.compute_degree_regression(feature_list)
+        _Degree = analysis.compute_degree_of_mean_numerical_features(feature_list)
         if upper_val > _Degree > lower_val and feature_list not in feature_list_list:
             feature_list_list.append(feature_list)
             _degress.append(_Degree)
     feature_list_list.append([])
     _degress.sort()
-    print(_degress)
+    print(feature_list_list)
     return feature_list_list
 
 
@@ -63,16 +63,15 @@ if __name__ == '__main__':
     loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size, shuffle=Shuffle)
     count = 100
     lower_val = 0
-    upper_val = 90
-    encoder_types = ['MLP', 'ResNet']
+    upper_val = 360
+    encoder_types = ['MLP', "ResNet"]
 
     start = time.perf_counter()
-
     # get feature combinations
     feature_list_list = generate_feature_combination_regression(
         loader_container, count=count, lower_val=lower_val, upper_val=upper_val)
     for encoder_type in encoder_types:
-        dir_name2save = '(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_reg'
+        dir_name2save = 'QT(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_reg'
 
         # train models and save
         train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, feature_list_list=feature_list_list,
@@ -83,9 +82,10 @@ if __name__ == '__main__':
         test, val, epoch_num_pre_train, epoch_num_train, feature_list_list = eval_from_dir(computed_data_dir, loader_container)
 
         analyse = Analyse(loader_container)
-        degree = [analyse.compute_degree_regression(feature_list) for feature_list in feature_list_list]
+        degree = [analyse.compute_degree_of_mean_numerical_features(feature_list) for feature_list in feature_list_list]
 
-
+        DistanceCorrelations = [analyse.compute_distance_correlation(feature_list)
+                                for feature_list in feature_list_list]
         # save data to excel
         result = {
             'feature': feature_list_list,
@@ -93,7 +93,8 @@ if __name__ == '__main__':
             'val_metrics': val,
             'Degree': degree,
             'epcoh_num_pre_train': epoch_num_pre_train,
-            'epoch_num_train': epoch_num_train
+            'epoch_num_train': epoch_num_train,
+            'DistanceCorrelation': DistanceCorrelations
         }
         df = pd.DataFrame(result)
         df.to_excel(computed_data_dir+'data.xlsx', index=False)
