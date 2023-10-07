@@ -15,7 +15,7 @@ def generate_feature_combination_regression(loader_container: LoaderContainer, c
     _degress = []
     _1, num_list, cat_list, _2 = loader_container.getInfo()
     while len(feature_list_list) < count:
-        feature_num = random.randint(1, 10)#len(num_list))
+        feature_num = random.randint(1, min(len(num_list), 1))
         feature_list = random.sample(range(0, len(num_list)), feature_num)
         feature_list.sort()
         _Degree = analysis.compute_degree_of_mean_numerical_features(feature_list)
@@ -26,6 +26,9 @@ def generate_feature_combination_regression(loader_container: LoaderContainer, c
     _degress.sort()
     print(feature_list_list)
     return feature_list_list
+
+from sklearn.preprocessing import StandardScaler
+
 
 
 def train_and_save(dataset_dir, encoder_type, feature_list_list,dir_name2save,
@@ -61,9 +64,9 @@ if __name__ == '__main__':
     '''only for regression task and numerical features, if there are categorical features, check code in model'''
     dataset_dir = 'dataset/regression/superconductivty_data/'
     loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size, shuffle=Shuffle)
-    count = 100
+    count = 81
     lower_val = 0
-    upper_val = 360
+    upper_val = 1010
     encoder_types = ['MLP', "ResNet"]
 
     start = time.perf_counter()
@@ -71,7 +74,7 @@ if __name__ == '__main__':
     feature_list_list = generate_feature_combination_regression(
         loader_container, count=count, lower_val=lower_val, upper_val=upper_val)
     for encoder_type in encoder_types:
-        dir_name2save = 'QT(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_reg'
+        dir_name2save = 'one_batch_per_feature_ST(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_reg'
 
         # train models and save
         train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, feature_list_list=feature_list_list,
@@ -98,6 +101,7 @@ if __name__ == '__main__':
         }
         df = pd.DataFrame(result)
         df.to_excel(computed_data_dir+'data.xlsx', index=False)
+    print(result['Degree'])
 
     # print cost of time
     end = time.perf_counter()

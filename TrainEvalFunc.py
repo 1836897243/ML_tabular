@@ -47,11 +47,21 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
                     targets = targets.view(-1, 1)
 
                 cur_loss = loss_func(outputs, targets)
+                '''
                 loss = loss + cur_loss
                 total_loss += cur_loss.item()
             if optimizer is not None:
                 loss.backward()
                 optimizer.step()  # update parameters
+                '''
+
+                #'''
+                #loss = loss + cur_loss
+                total_loss += cur_loss.item()
+                if optimizer is not None:
+                    cur_loss.backward()
+                    optimizer.step()  # update parameters
+                #'''
         total_loss = total_loss ** 0.5
     avg_loss = total_loss / len(data_loader_list[0])
     return avg_loss

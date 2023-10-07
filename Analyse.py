@@ -89,7 +89,7 @@ class Analyse:
             mean_feature = np.mean(self.features[:, feature_list], axis=1)
 
         mean_feature = mean_feature.flatten()
-        return Degree(mean_feature, self.targets)
+        return Degree(mean_feature, self.targets.flatten())
 
     def compute_mean_degree_of_numerical_features(self, feature_list):
         if len(feature_list) == 0:
