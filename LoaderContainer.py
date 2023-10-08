@@ -61,12 +61,12 @@ def LoadTarget(target_dir):
     return targets
 
 
-def processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test, scalar_type: str):
+def processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test, scaler_type: str):
 
-    assert scalar_type in ['QuantileTransformer', 'StandardScaler', 'MinMaxScaler']
-    if scalar_type == 'QuantileTransformer':
+    assert scaler_type in ['QuantileTransformer', 'StandardScaler', 'MinMaxScaler']
+    if scaler_type == 'QuantileTransformer':
         scalar = QuantileTransformer()
-    elif scalar_type == 'StandardScaler':
+    elif scaler_type == 'StandardScaler':
         scalar = StandardScaler()
     else:
         scalar = MinMaxScaler()
@@ -95,13 +95,13 @@ def processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test, s
            torch.tensor(test_features, dtype=torch.float32)
 
 
-def processTarget(tar_train, tar_val, tar_test, task_type, n_class, scalar_type: str):
+def processTarget(tar_train, tar_val, tar_test, task_type, n_class, scaler_type: str):
     if task_type == TaskType.regression:
 
-        assert scalar_type in ['QuantileTransformer', 'StandardScaler', 'MinMaxScaler']
-        if scalar_type == 'QuantileTransformer':
+        assert scaler_type in ['QuantileTransformer', 'StandardScaler', 'MinMaxScaler']
+        if scaler_type == 'QuantileTransformer':
             scalar = QuantileTransformer()
-        elif scalar_type == 'StandardScaler':
+        elif scaler_type == 'StandardScaler':
             scalar = StandardScaler()
         else:
             scalar = MinMaxScaler()
@@ -128,62 +128,8 @@ def processTarget(tar_train, tar_val, tar_test, task_type, n_class, scalar_type:
                torch.tensor(tar_test, dtype=torch.float32), -1
 
 
-def processMinMaxScalerFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test):
-    maxFeature = np.max(num_train, axis=0)
-    minFeature = np.min(num_train, axis=0)
-    scaler = maxFeature - minFeature
-    num_train = (num_train - minFeature) / scaler
-    num_val = (num_val - minFeature) / scaler
-    num_test = (num_test - minFeature) / scaler
-
-    if cat_train is not None:
-        for idx in range(cat_train.shape[1]):
-            label_encoder = LabelEncoder()
-            cat_train[:, idx] = label_encoder.fit_transform(cat_train[:, idx])
-            cat_val[:, idx] = label_encoder.transform(cat_val[:, idx])
-            cat_test[:, idx] = label_encoder.transform(cat_test[:, idx])
-
-        train_features = np.hstack((num_train, cat_train))
-        val_features = np.hstack((num_val, cat_val))
-        test_features = np.hstack((num_test, cat_test))
-    else:
-        train_features = num_train
-        val_features = num_val
-        test_features = num_test
-    train_features = train_features.astype(np.float32)
-    val_features = val_features.astype(np.float32)
-    test_features = test_features.astype(np.float32)
-    return torch.tensor(train_features, dtype=torch.float32), torch.tensor(val_features, dtype=torch.float32),\
-           torch.tensor(test_features, dtype=torch.float32), scaler
-
-
-def processMinMaxScalerTarget(tar_train, tar_val, tar_test, task_type, n_class):
-    if task_type == TaskType.regression:
-        maxTarget = np.max(tar_train)
-        minTarget = np.min(tar_train)
-        scaler = maxTarget - minTarget
-
-        tar_train = (tar_train - minTarget) / scaler
-        tar_val = (tar_val - minTarget) / scaler
-        tar_test = (tar_test - minTarget) / scaler
-        return torch.tensor(tar_train, dtype=torch.float32), torch.tensor(tar_val, dtype=torch.float32),\
-               torch.tensor(tar_test, dtype=torch.float32), scaler
-    if task_type == TaskType.multiclass:
-        label_encoder = LabelEncoder()
-        tar_train = label_encoder.fit_transform(tar_train)
-        tar_train = F.one_hot(torch.tensor(tar_train), num_classes=n_class).float()
-
-        tar_val = label_encoder.transform(tar_val)
-        tar_val = F.one_hot(torch.tensor(tar_val), num_classes=n_class).float()
-
-        tar_test = label_encoder.transform(tar_test)
-        tar_test = F.one_hot(torch.tensor(tar_test), num_classes=n_class).float()
-        return tar_train, tar_val, tar_test, -1
-    else:
-        return torch.tensor(tar_train, dtype=torch.float32), torch.tensor(tar_val, dtype=torch.float32), \
-               torch.tensor(tar_test, dtype=torch.float32), -1
 class LoaderContainer:
-    def __init__(self, dataset_dir, batch_size, shuffle):
+    def __init__(self, dataset_dir, batch_size, shuffle, scaler_type):
         self.shuffle = shuffle
         self.batch_size = batch_size
         info_json = dataset_dir + 'info.json'
@@ -271,13 +217,11 @@ class LoaderContainer:
             val_targets = shuffled_target[split_index1:split_index2]
             test_targets = shuffled_target[split_index2:]
             '''
-
-            scalar_type = 'QuantileTransformer'
             self.train_features, self.val_features, self.test_features, = \
-                processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test, scalar_type)
+                processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test, scaler_type)
 
             self.train_targets, self.val_targets, self.test_targets, self.inverse_transform_func = \
-                processTarget(train_targets, val_targets, test_targets, self.task_type, self.out_dim, scalar_type)
+                processTarget(train_targets, val_targets, test_targets, self.task_type, self.out_dim, scaler_type)
 
     def getTrainLoader(self):
         train_dataset = CustomDataset(self.train_features, self.train_targets)

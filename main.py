@@ -15,7 +15,7 @@ def generate_feature_combination_regression(loader_container: LoaderContainer, c
     _degress = []
     _1, num_list, cat_list, _2 = loader_container.getInfo()
     while len(feature_list_list) < count:
-        feature_num = random.randint(1, min(len(num_list), 1))
+        feature_num = random.randint(1, min(len(num_list), 10))  # in case of feature num is too large
         feature_list = random.sample(range(0, len(num_list)), feature_num)
         feature_list.sort()
         _Degree = analysis.compute_degree_of_mean_numerical_features(feature_list)
@@ -25,18 +25,17 @@ def generate_feature_combination_regression(loader_container: LoaderContainer, c
     feature_list_list.append([])
     _degress.sort()
     print(feature_list_list)
+    print(_degress)
     return feature_list_list
 
-from sklearn.preprocessing import StandardScaler
 
 
-
-def train_and_save(dataset_dir, encoder_type, feature_list_list,dir_name2save,
+def train_and_save(dataset_dir, loader_container, encoder_type, feature_list_list,dir_name2save,
                    seed, batch_size, hidden_dim, shuffle):
 
     for feature_list in feature_list_list:
         print(f'current feature_list:{feature_list}')
-        train_and_save_one_model(dataset_dir, dir_name2save, encoder_type, feature_list,
+        train_and_save_one_model(dataset_dir, dir_name2save,loader_container,  encoder_type, feature_list,
                                                 seed, batch_size, hidden_dim, shuffle)
         '''
     processes = []
@@ -62,11 +61,12 @@ Shuffle = False
 if __name__ == '__main__':
     setRandomSeed(0)
     '''only for regression task and numerical features, if there are categorical features, check code in model'''
-    dataset_dir = 'dataset/regression/superconductivty_data/'
-    loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size, shuffle=Shuffle)
-    count = 81
+    dataset_dir = 'dataset/regression/airfoil_self_noise/'
+    loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size,
+                                       shuffle=Shuffle, scaler_type='StandardScaler')
+    count = 31
     lower_val = 0
-    upper_val = 1010
+    upper_val = 180
     encoder_types = ['MLP', "ResNet"]
 
     start = time.perf_counter()
@@ -74,26 +74,30 @@ if __name__ == '__main__':
     feature_list_list = generate_feature_combination_regression(
         loader_container, count=count, lower_val=lower_val, upper_val=upper_val)
     for encoder_type in encoder_types:
-        dir_name2save = 'one_batch_per_feature_ST(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_reg'
+        dir_name2save = '(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_o_reg'
 
         # train models and save
-        train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, feature_list_list=feature_list_list,
-                       dir_name2save=dir_name2save, seed=Seed, batch_size=Batch_size, hidden_dim=Hidden_dim, shuffle=Shuffle)
+        train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, loader_container=loader_container,
+                       feature_list_list=feature_list_list, dir_name2save=dir_name2save, seed=Seed,
+                       batch_size=Batch_size, hidden_dim=Hidden_dim, shuffle=Shuffle)
 
         # eval the model and compute similarity, finally save to excel
         computed_data_dir = dataset_dir + dir_name2save + '/'
-        test, val, epoch_num_pre_train, epoch_num_train, feature_list_list = eval_from_dir(computed_data_dir, loader_container)
+        test, val,pretrain_test, pretrain_val, epoch_num_pre_train, epoch_num_train, feature_list_list = eval_from_dir(computed_data_dir, loader_container)
 
         analyse = Analyse(loader_container)
         degree = [analyse.compute_degree_of_mean_numerical_features(feature_list) for feature_list in feature_list_list]
 
         DistanceCorrelations = [analyse.compute_distance_correlation(feature_list)
                                 for feature_list in feature_list_list]
+
         # save data to excel
         result = {
             'feature': feature_list_list,
             'test_metrics': test,
             'val_metrics': val,
+            'pretrain_test': pretrain_test,
+            'pretrain_val': pretrain_val,
             'Degree': degree,
             'epcoh_num_pre_train': epoch_num_pre_train,
             'epoch_num_train': epoch_num_train,

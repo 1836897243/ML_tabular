@@ -9,13 +9,15 @@ from itertools import combinations
 from Analyse import Analyse
 from TrainEvalFunc import eval
 from matplotlib import pyplot as plt
+from TrainEvalFunc import RMSE
 
+
+# to save the information of training process
 def save_image(epochs, train_losses, val_losses, file_name):
     if epochs == 0:
         return
     fig, ax = plt.subplots()
     x = np.arange(0, len(train_losses))
-
 
     ax.plot(x, train_losses, label='train')
     ax.plot(x, val_losses, label='val')
@@ -24,6 +26,8 @@ def save_image(epochs, train_losses, val_losses, file_name):
     plt.legend()
     plt.savefig(file_name, bbox_inches='tight', dpi=300, format='svg')
     plt.close(fig)
+
+
 def setRandomSeed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -52,6 +56,8 @@ def eval_from_dir(directory: str, loader_container: LoaderContainer):
 
     test = []
     val = []
+    pretrain_test = []
+    pretrain_val = []
     epochs_num_pre_train = []
     epochs_num_train = []
     feature_list_list = []
@@ -60,7 +66,7 @@ def eval_from_dir(directory: str, loader_container: LoaderContainer):
     for item in contents:
         if os.path.isdir(directory + item):
             files = os.listdir(directory + item)
-            if 'encoder.pt' not in files or 'head.pt' not in files :
+            if 'encoder.pt' not in files or 'head.pt' not in files:
                 break
             print(directory + item)
 
@@ -73,6 +79,23 @@ def eval_from_dir(directory: str, loader_container: LoaderContainer):
             trained_encoder = torch.load(directory + item + '/encoder.pt')
             trained_head = torch.load(directory + item + '/head.pt')
             test_data, val_data = eval(loader_container, trained_encoder, trained_head, device)
+
+            # pretraing info
+            if 'pretrained_encoder.pt' in files:
+                pretrained_encoder = torch.load(directory + item + '/pretrained_encoder.pt')
+                pretrain_test_loss = 0
+                pretrain_val_loss = 0
+                for file in files:
+                    if file[-15:] != 'feature_head.pt':
+                        continue
+                    pretrained_head = torch.load(directory + item + '/' + file)
+                    pretrain_test_loss += RMSE(data_loader=loader_container.getTestLoader(), encoder=pretrained_encoder,
+                                               head=pretrained_head, inverse_transform_func=None, device=device)
+                    pretrain_val_loss += RMSE(data_loader=loader_container.getValLoader(), encoder=pretrained_encoder,
+                                              head=pretrained_head, inverse_transform_func=None, device=device)
+                pretrain_test.append(pretrain_test_loss)
+                pretrain_val.append(pretrain_val_loss)
+
             # epoch_info
             epoch_info_file_name = 'epoch_info.csv'
             epochs_info = np.loadtxt(directory + item + '/' + epoch_info_file_name, delimiter=',')
@@ -82,10 +105,16 @@ def eval_from_dir(directory: str, loader_container: LoaderContainer):
             epochs_num_train.append(epochs_info[1])
             test.append(test_data)
             val.append(val_data)
-    return test, val, epochs_num_pre_train, epochs_num_train, feature_list_list
+
+    # for file which dose not contain pretrained_encoder and pretrained_head
+    if len(pretrain_test) == 0:
+        pretrain_test = np.zeros(len(test))
+        pretrain_val = np.zeros(len(test))
+    return test, val, pretrain_test, pretrain_val, epochs_num_pre_train, epochs_num_train, feature_list_list
 
 
-def train_and_save_one_model(dataset_dir, dir_name2save, encoder_type, feature_list, seed, batch_size, hidden_dim, shuffle):
+def train_and_save_one_model(dataset_dir, dir_name2save, loader_container, encoder_type, feature_list, seed, batch_size,
+                             hidden_dim, shuffle):
     '''
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_dir', type=str, help='<Required>file directory of dataset', required=True)
@@ -129,27 +158,31 @@ def train_and_save_one_model(dataset_dir, dir_name2save, encoder_type, feature_l
     feature_str = str(feature_list)
     cur_feature_dir = save_file_dir + feature_str + '/'
     try_mkdir(cur_feature_dir)
-    encoder_file = cur_feature_dir + 'encoder' + '.pt'
-    head_file = cur_feature_dir + 'head' + '.pt'
+    pretrained_encoder_file = cur_feature_dir + 'pretrained_encoder.pt'
+    encoder_file = cur_feature_dir + 'encoder.pt'
+    head_file = cur_feature_dir + 'head.pt'
 
     if os.path.exists(encoder_file) and os.path.exists(head_file):
         return
-    loader_container = LoaderContainer(dataset_dir, batch_size, shuffle)
-    analysis = Analyse(loader_container)
+
     setRandomSeed(seed)
     workflow = WorkFlow(loader_container, hidden_dim, encoder_type)
     setRandomSeed(seed)
     encoder, feature_heads, epochs_pre_train, pre_train_loss_list, pre_val_loss_list \
         = workflow.pre_train(feature_list, device=device)
+    # save pretrained model
+    for feature_head, feature_index in zip(feature_heads, feature_list):
+        torch.save(feature_head, cur_feature_dir + str(feature_index) + '-feature_head.pt')
+    torch.save(encoder, pretrained_encoder_file)
+
     encoder, head, epochs_train, train_loss_list, val_loss_list = workflow.train(encoder, device=device)
-    test_metric, val_metric = workflow.eval(encoder, head, device=device)
+
     save_image(epochs_pre_train, pre_train_loss_list, pre_val_loss_list, cur_feature_dir + 'pre_train.svg')
     save_image(epochs_train, train_loss_list, val_loss_list, cur_feature_dir + 'train.svg')
     torch.save(encoder, encoder_file)
     torch.save(head, head_file)
-    for feature_head, feature_index in zip(feature_heads, feature_list):
-        torch.save(feature_head, cur_feature_dir + str(feature_index) + '-feature_head' + '.pt')
+
     # save epochs info
-    epochs_info = np.array([epochs_pre_train, epochs_train])
+    epochs_num = np.array([epochs_pre_train, epochs_train])
     epoch_info_file_name = cur_feature_dir + 'epoch_info.csv'
-    np.savetxt(fname=epoch_info_file_name, X=epochs_info, delimiter=',')
+    np.savetxt(fname=epoch_info_file_name, X=epochs_num, delimiter=',')

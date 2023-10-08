@@ -47,21 +47,13 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
                     targets = targets.view(-1, 1)
 
                 cur_loss = loss_func(outputs, targets)
-                '''
+
                 loss = loss + cur_loss
                 total_loss += cur_loss.item()
             if optimizer is not None:
                 loss.backward()
                 optimizer.step()  # update parameters
-                '''
 
-                #'''
-                #loss = loss + cur_loss
-                total_loss += cur_loss.item()
-                if optimizer is not None:
-                    cur_loss.backward()
-                    optimizer.step()  # update parameters
-                #'''
         total_loss = total_loss ** 0.5
     avg_loss = total_loss / len(data_loader_list[0])
     return avg_loss
@@ -78,7 +70,7 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
     all_parameters = list(encoder.parameters())
     for _head in head_list:
         all_parameters = all_parameters + list(_head.parameters())
-    optimizer = optim.AdamW(all_parameters, lr=1e-3, weight_decay=0.1)
+    optimizer = optim.AdamW(all_parameters, lr=1e-3)#, weight_decay=0.1)
 
     # early_stop = 16
     epochs = 1000
@@ -130,8 +122,9 @@ def RMSE(data_loader, encoder, head, inverse_transform_func, device):
             predictions.extend(outputs.tolist())
             targets.extend(targets_batch.tolist())
     predictions = np.array(predictions)
-    predictions = inverse_transform_func(predictions.reshape(-1,1))
-    targets = inverse_transform_func(targets)
+    if inverse_transform_func is not None:
+        predictions = inverse_transform_func(predictions.reshape(-1,1))
+        targets = inverse_transform_func(targets)
     rmse = mean_squared_error(targets, predictions) ** 0.5
     return rmse
 
