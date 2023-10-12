@@ -8,6 +8,9 @@ import torch.multiprocessing
 import time
 from train_save_eval_models import eval_from_dir, train_and_save_one_model
 from train_save_eval_models import setRandomSeed
+
+
+# lower_val is lower degree, upper_val is upper degree
 def generate_feature_combination_regression(loader_container: LoaderContainer, count, lower_val, upper_val):
     analysis = Analyse(loader_container)
     # generate feature_list
@@ -27,7 +30,6 @@ def generate_feature_combination_regression(loader_container: LoaderContainer, c
     print(feature_list_list)
     print(_degress)
     return feature_list_list
-
 
 
 def train_and_save(dataset_dir, loader_container, encoder_type, feature_list_list,dir_name2save,
@@ -59,55 +61,62 @@ Hidden_dim = 128
 Shuffle = False
 
 if __name__ == '__main__':
-    setRandomSeed(0)
-    '''only for regression task and numerical features, if there are categorical features, check code in model'''
-    dataset_dir = 'dataset/regression/airfoil_self_noise/'
-    loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size,
-                                       shuffle=Shuffle, scaler_type='StandardScaler')
-    count = 31
-    lower_val = 0
-    upper_val = 180
-    encoder_types = ['MLP', "ResNet"]
-
     start = time.perf_counter()
-    # get feature combinations
-    feature_list_list = generate_feature_combination_regression(
-        loader_container, count=count, lower_val=lower_val, upper_val=upper_val)
-    for encoder_type in encoder_types:
-        dir_name2save = '(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)w_o_reg'
+    dataset_dirs = ['dataset/regression/airfoil_self_noise/', 'dataset/regression/california_housing/',
+                    'dataset/regression/combined_cycle_power_plant/',
+                    'dataset/regression/concrete_compressive_strength/', 'dataset/regression/qsar_aquatic_toxicity/',
+                    'dataset/regression/qsar_fish_toxicity/', 'dataset/regression/yacht_hydrodynamics/']
+    for dataset_dir in dataset_dirs:
+        setRandomSeed(0)
 
-        # train models and save
-        train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, loader_container=loader_container,
-                       feature_list_list=feature_list_list, dir_name2save=dir_name2save, seed=Seed,
-                       batch_size=Batch_size, hidden_dim=Hidden_dim, shuffle=Shuffle)
+        loader_container = LoaderContainer(dataset_dir=dataset_dir, batch_size=Batch_size,
+                                           shuffle=Shuffle, scaler_type='StandardScaler')
+        _1, num_feature_list, cat_feature_list, _3 = loader_container.getInfo()
+        # 200 is the maxcount for dataset which has enough features
+        # 2**len(num_feature_list + cat_feature_list) - 1 is the max count for dataset which only has limited features
+        count = min(200, 2**len(num_feature_list + cat_feature_list) - 1)
+        lower_val = 0
+        upper_val = 180
+        encoder_types = ['MLP', "ResNet"]
 
-        # eval the model and compute similarity, finally save to excel
-        computed_data_dir = dataset_dir + dir_name2save + '/'
-        test, val,pretrain_test, pretrain_val, epoch_num_pre_train, epoch_num_train, feature_list_list = eval_from_dir(computed_data_dir, loader_container)
+        # get feature combinations
+        feature_list_list = generate_feature_combination_regression(
+            loader_container, count=count, lower_val=lower_val, upper_val=upper_val)
+        for encoder_type in encoder_types:
+            dir_name2save = '(' + encoder_type + ')' + str(lower_val) + '-' + str(upper_val) + '(Degree)-batch-25'
 
-        analyse = Analyse(loader_container)
-        degree = [analyse.compute_degree_of_mean_numerical_features(feature_list) for feature_list in feature_list_list]
+            # train models and save
+            train_and_save(dataset_dir=dataset_dir, encoder_type=encoder_type, loader_container=loader_container,
+                           feature_list_list=feature_list_list, dir_name2save=dir_name2save, seed=Seed,
+                           batch_size=Batch_size, hidden_dim=Hidden_dim, shuffle=Shuffle)
 
-        DistanceCorrelations = [analyse.compute_distance_correlation(feature_list)
-                                for feature_list in feature_list_list]
+            # eval the model and compute similarity, finally save to excel
+            computed_data_dir = dataset_dir + dir_name2save + '/'
+            test, val, pretrain_test, pretrain_val, epoch_num_pre_train, epoch_num_train, feature_list_list \
+                = eval_from_dir(computed_data_dir, loader_container)
 
-        # save data to excel
-        result = {
-            'feature': feature_list_list,
-            'test_metrics': test,
-            'val_metrics': val,
-            'pretrain_test': pretrain_test,
-            'pretrain_val': pretrain_val,
-            'Degree': degree,
-            'epcoh_num_pre_train': epoch_num_pre_train,
-            'epoch_num_train': epoch_num_train,
-            'DistanceCorrelation': DistanceCorrelations
-        }
-        df = pd.DataFrame(result)
-        df.to_excel(computed_data_dir+'data.xlsx', index=False)
-    print(result['Degree'])
+            analyse = Analyse(loader_container)
+            degree = [analyse.compute_degree_of_mean_numerical_features(feature_list) for feature_list in feature_list_list]
 
-    # print cost of time
+            DistanceCorrelations = [analyse.compute_distance_correlation(feature_list)
+                                    for feature_list in feature_list_list]
+
+            # save data to excel
+            result = {
+                'feature': feature_list_list,
+                'test_metrics': test,
+                'val_metrics': val,
+                'pretrain_test': pretrain_test,
+                'pretrain_val': pretrain_val,
+                'Degree': degree,
+                'epoch_num_pre_train': epoch_num_pre_train,
+                'epoch_num_train': epoch_num_train,
+                'DistanceCorrelation': DistanceCorrelations
+            }
+            df = pd.DataFrame(result)
+            df.to_excel(computed_data_dir+'data.xlsx', index=False)
+
+        # print cost of time
     end = time.perf_counter()
     print("运行耗时", end - start)
 

@@ -8,6 +8,7 @@ from Models import Head
 from sklearn.preprocessing import LabelEncoder, QuantileTransformer, StandardScaler, MinMaxScaler
 import torch.nn.functional as F
 
+
 class TaskType(Enum):
     regression = 1
     binclass = 2
@@ -27,7 +28,7 @@ class NRMSELoss(nn.Module):
 
     def forward(self, predicted, target):
         # 计算均方误差
-        nrmse_loss = torch.sqrt(torch.mean((predicted - target)**2))
+        nrmse_loss = torch.sqrt(torch.mean((predicted - target) ** 2))
         return nrmse_loss
 
 
@@ -62,7 +63,6 @@ def LoadTarget(target_dir):
 
 
 def processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test, scaler_type: str):
-
     assert scaler_type in ['QuantileTransformer', 'StandardScaler', 'MinMaxScaler']
     if scaler_type == 'QuantileTransformer':
         scalar = QuantileTransformer()
@@ -91,8 +91,8 @@ def processFeature(num_train, cat_train, num_val, cat_val, num_test, cat_test, s
     train_features = train_features.astype(np.float32)
     val_features = val_features.astype(np.float32)
     test_features = test_features.astype(np.float32)
-    return torch.tensor(train_features, dtype=torch.float32), torch.tensor(val_features, dtype=torch.float32),\
-           torch.tensor(test_features, dtype=torch.float32)
+    return torch.tensor(train_features, dtype=torch.float32), torch.tensor(val_features, dtype=torch.float32), \
+        torch.tensor(test_features, dtype=torch.float32)
 
 
 def processTarget(tar_train, tar_val, tar_test, task_type, n_class, scaler_type: str):
@@ -105,12 +105,12 @@ def processTarget(tar_train, tar_val, tar_test, task_type, n_class, scaler_type:
             scalar = StandardScaler()
         else:
             scalar = MinMaxScaler()
-        tar_train = scalar.fit_transform(tar_train.reshape(-1,1))
-        tar_val = scalar.transform(tar_val.reshape(-1,1))
-        tar_test = scalar.transform(tar_test.reshape(-1,1))
+        tar_train = scalar.fit_transform(tar_train.reshape(-1, 1))
+        tar_val = scalar.transform(tar_val.reshape(-1, 1))
+        tar_test = scalar.transform(tar_test.reshape(-1, 1))
 
-        return torch.tensor(tar_train, dtype=torch.float32), torch.tensor(tar_val, dtype=torch.float32),\
-               torch.tensor(tar_test, dtype=torch.float32), scalar.inverse_transform
+        return torch.tensor(tar_train, dtype=torch.float32), torch.tensor(tar_val, dtype=torch.float32), \
+            torch.tensor(tar_test, dtype=torch.float32), scalar.inverse_transform
 
     if task_type == TaskType.multiclass:
         label_encoder = LabelEncoder()
@@ -125,7 +125,7 @@ def processTarget(tar_train, tar_val, tar_test, task_type, n_class, scaler_type:
         return tar_train, tar_val, tar_test, -1
     else:
         return torch.tensor(tar_train, dtype=torch.float32), torch.tensor(tar_val, dtype=torch.float32), \
-               torch.tensor(tar_test, dtype=torch.float32), -1
+            torch.tensor(tar_test, dtype=torch.float32), -1
 
 
 class LoaderContainer:
@@ -173,7 +173,7 @@ class LoaderContainer:
             test_targets = LoadTarget(test_target_dir)
 
             '''
-            # shuffle  val and test
+            # shuffle  val and test dataset
             print(f'num_train.shape is {num_train.shape}')
             print(f'num_val.shape is {num_val.shape}')
             print(f'num_test.shape is {num_test.shape}')
@@ -236,30 +236,36 @@ class LoaderContainer:
         return DataLoader(test_dataset, self.batch_size, self.shuffle)
 
     def getPreTrainLoader(self, index):
-        train_features = np.copy(self.train_features)
-        train_targets = np.copy(self.train_features[:, index])
-
-        #feature_std = None
+        # [:self.batch_size*batch_num] is used to confine batch num when pretrain
+        # batch_num = 5
+        train_features = np.copy(self.train_features)  # [:self.batch_size*batch_num]
+        train_targets = np.copy(self.train_features[:, index])  # [:self.batch_size*batch_num]
         # val
         val_features = np.copy(self.val_features)
         val_targets = np.copy(self.val_features[:, index])
+
+        test_features = np.copy(self.test_features)
+        test_targets = np.copy(self.test_features[:, index])
         if index in self.num_list:
-            #feature_std = self.feature_std[index]
             # if feature is numerical, set default value as 0
             train_features[:, index] = 0
             val_features[:, index] = 0
+            test_features[:, index] = 0
         elif index in self.cat_list:
-            #feature_std = -1
             n_class = len(np.unique(train_targets.astype(np.int32)))
             # if the feature is categorical, set default value as a type not in dataset
             train_features[:, index] = n_class
             val_features[:, index] = n_class
+            test_features[:, index] = n_class
             train_targets = F.one_hot(torch.tensor(train_targets).long(), num_classes=n_class).float()
             val_targets = F.one_hot(torch.tensor(val_targets).long(), num_classes=n_class).float()
+            test_targets = F.one_hot(torch.tensor(test_targets).long(), num_class=n_class).float()
         pre_train_dataset = CustomDataset(train_features, train_targets)
         val_dataset = CustomDataset(val_features, val_targets)
-        return DataLoader(pre_train_dataset, self.batch_size, self.shuffle), \
-               DataLoader(val_dataset, self.batch_size, self.shuffle)#, feature_std
+        test_dataset = CustomDataset(test_features, test_targets)
+        return (DataLoader(pre_train_dataset, self.batch_size, self.shuffle),
+                DataLoader(val_dataset, self.batch_size, self.shuffle),
+                DataLoader(test_dataset, self.batch_size, self.shuffle))
 
     def getTrainHeadAndLossFunc(self, hidden_dim):
         if self.task_type == TaskType.regression:
@@ -280,7 +286,7 @@ class LoaderContainer:
     def getAllPreTrainHeadAndLossFuncList(self, hidden_dim):
         all_pre_train_head_list = []
         all_pre_train_loss_func_list = []
-        feature_num = len(self.cat_list)+len(self.num_list)
+        feature_num = len(self.cat_list) + len(self.num_list)
         for feature_index in range(feature_num):
             if feature_index in self.num_list:
                 all_pre_train_head_list.append(Head(hidden_dim, 1))

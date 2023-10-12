@@ -88,10 +88,14 @@ def eval_from_dir(directory: str, loader_container: LoaderContainer):
                 for file in files:
                     if file[-15:] != 'feature_head.pt':
                         continue
+                    feature_index = int(file[:-16])
                     pretrained_head = torch.load(directory + item + '/' + file)
-                    pretrain_test_loss += RMSE(data_loader=loader_container.getTestLoader(), encoder=pretrained_encoder,
+                    train_pretrain_loader, val_pretrain_loader, test_pretrain_loader \
+                        = loader_container.getPreTrainLoader(feature_index)
+
+                    pretrain_test_loss += RMSE(data_loader=test_pretrain_loader, encoder=pretrained_encoder,
                                                head=pretrained_head, inverse_transform_func=None, device=device)
-                    pretrain_val_loss += RMSE(data_loader=loader_container.getValLoader(), encoder=pretrained_encoder,
+                    pretrain_val_loss += RMSE(data_loader=val_pretrain_loader, encoder=pretrained_encoder,
                                               head=pretrained_head, inverse_transform_func=None, device=device)
                 pretrain_test.append(pretrain_test_loss)
                 pretrain_val.append(pretrain_val_loss)

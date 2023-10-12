@@ -59,7 +59,7 @@ def run_one_epoch(optimizer, encoder, loss_func_list, head_list, data_loader_lis
     return avg_loss
 
 
-def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, device, early_stop):
+def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, device, early_stop, max_epochs=1000):
     if len(train_loader_list) == 0:
         return encoder, head_list, 0, [], []
     train_loss_list = []
@@ -73,16 +73,15 @@ def fit(encoder, loss_func_list, head_list, train_loader_list, val_loader_list, 
     optimizer = optim.AdamW(all_parameters, lr=1e-3)#, weight_decay=0.1)
 
     # early_stop = 16
-    epochs = 1000
+    epochs = max_epochs
 
     patience = early_stop
 
-    epochs_num = 1000
+    epochs_num = epochs
     for eid in range(epochs):
         train_loss = run_one_epoch(
             optimizer=optimizer, encoder=encoder, loss_func_list=loss_func_list, head_list=head_list,
             data_loader_list=train_loader_list, device=device)
-
         val_loss = run_one_epoch(
             optimizer=None, encoder=encoder, loss_func_list=loss_func_list, head_list=head_list,
             data_loader_list=val_loader_list, device=device)

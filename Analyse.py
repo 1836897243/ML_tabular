@@ -6,28 +6,6 @@ from Similarity import *
 from TrainEvalFunc import eval
 import os
 
-'''
-# convert numerical feature to categorical feature
-def numerical2categorical(numerical_arr: np.array, n_cat: int):
-    max_value = np.max(numerical_arr)
-    min_value = np.min(numerical_arr)
-
-    data_range = max_value - min_value
-    class_range = data_range / n_cat
-    normalized_arr = (numerical_arr - min_value) / class_range
-    cat_arr = np.clip(normalized_arr.astype(int), 0, n_cat - 1)
-    return cat_arr
-
-
-# convert categorical feature to numerical feature
-def numerical2categorical_with_max_min(numerical_arr: np.array, n_cat: int, max_value: float, min_value: float):
-    data_range = max_value - min_value
-    class_range = data_range / n_cat
-    normalized_arr = (numerical_arr - min_value) / class_range
-    cat_arr = np.clip(normalized_arr.astype(int), 0, n_cat - 1)
-    return cat_arr
-'''
-
 
 class Analyse:
     def __init__(self, loader_container):
