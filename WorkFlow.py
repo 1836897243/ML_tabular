@@ -41,7 +41,7 @@ class WorkFlow:
 
         encoder, heads, epochs, train_loss_list, val_loss_list = fit(encoder=encoder, loss_func_list=pre_train_loss_func_list, head_list=pre_train_head_list,
                              train_loader_list=pre_train_loader_list, val_loader_list=pre_val_loader_list,
-                             device=device, early_stop=3, max_epochs=1000)
+                             device=device, early_stop=16, max_epochs=1000)
         return encoder, heads, epochs, train_loss_list, val_loss_list
 
     def train(self, encoder, device):

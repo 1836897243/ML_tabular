@@ -237,9 +237,9 @@ class LoaderContainer:
 
     def getPreTrainLoader(self, index):
         # [:self.batch_size*batch_num] is used to confine batch num when pretrain
-        # batch_num = 5
-        train_features = np.copy(self.train_features)  # [:self.batch_size*batch_num]
-        train_targets = np.copy(self.train_features[:, index])  # [:self.batch_size*batch_num]
+        batch_num = 50
+        train_features = np.copy(self.train_features)[:self.batch_size*batch_num]
+        train_targets = np.copy(self.train_features[:, index])[:self.batch_size*batch_num]
         # val
         val_features = np.copy(self.val_features)
         val_targets = np.copy(self.val_features[:, index])
