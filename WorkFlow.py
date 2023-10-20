@@ -55,6 +55,43 @@ class WorkFlow:
 
         return encoder, head_list[0], epochs, train_loss_list, val_loss_list
 
+    def MOTIVATION_one_phase_train(self, feature_list, device):
+        input_num, num_list, cat_list, task_type = self.loader_container.getInfo()
+        encoder = Models.Encoder(self.encoder_type, input_num, self.hidden_dim, num_list, cat_list).to(device)
+        train_head_list = []
+        train_loader_list = []
+        val_loader_list = []
+        train_loss_func_list = []  # nn.MSELoss()
+
+        all_feature_train_head_list, all_pre_train_loss_func_list = \
+            self.loader_container.getAllPreTrainHeadAndLossFuncList(self.hidden_dim)
+
+        for feature_index in feature_list:
+            train_head_list.append(all_feature_train_head_list[feature_index].to(device))
+            train_loss_func_list.append(all_pre_train_loss_func_list[feature_index])
+
+            feature_train_loader, feature_val_loader, feature_test_loader = \
+                self.loader_container.getPreTrainLoader(feature_index)
+            train_loader_list.append(feature_train_loader)
+            val_loader_list.append(feature_val_loader)
+
+        target_head, loss_func = self.loader_container.getTrainHeadAndLossFunc(self.hidden_dim)
+
+        train_head_list.append(target_head.to(device))
+        train_loader_list.append(self.loader_container.getTrainLoader())
+        val_loader_list.append(self.loader_container.getValLoader())
+        train_loss_func_list.append(loss_func)
+
+        # last one of heads is target head
+        encoder, heads, epochs, train_loss_list, val_loss_list = fit(encoder=encoder,
+                                                                     loss_func_list=train_loss_func_list,
+                                                                     head_list=train_head_list,
+                                                                     train_loader_list=train_loader_list,
+                                                                     val_loader_list=val_loader_list,
+                                                                     device=device, early_stop=16, max_epochs=1000)
+        return encoder, heads, epochs, train_loss_list, val_loss_list
+
+
     def eval(self, encoder, head, device):
         test_data_loader = self.loader_container.getTestLoader()
         val_data_loader = self.loader_container.getValLoader()

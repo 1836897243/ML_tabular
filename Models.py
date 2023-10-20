@@ -14,9 +14,6 @@ import torch.nn.functional as F
 
 from torch import Tensor
 
-import lib
-
-
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim) -> None:
         super().__init__()

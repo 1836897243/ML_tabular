@@ -7,9 +7,7 @@ from WorkFlow import WorkFlow
 from UitlsTools import save_image, try_mkdir, setRandomSeed
 from LoaderContainer import LoaderContainer
 
-
-
-def train():
+def Motivation_train():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_dir', type=str, help='<Required>file directory of dataset', required=True)
 
@@ -42,19 +40,18 @@ def train():
     hidden_dim = args.hidden_dim
     shuffle = args.shuffle
 
-
-    print(os.getcwd())
     # cuda
     if torch.cuda.is_available():
         device = torch.device("cuda:" + str(args.cuda))
     else:
         device = torch.device("cpu")
 
+
     # save model to excel file
     feature_str = str(feature_list)
     cur_feature_dir = os.path.join(save_file_dir, feature_str)
     try_mkdir(cur_feature_dir)
-    pretrained_encoder_file = os.path.join(cur_feature_dir, 'pretrained_encoder.pt')
+
     encoder_file = os.path.join(cur_feature_dir, 'encoder.pt')
     head_file = os.path.join(cur_feature_dir, 'head.pt')
 
@@ -62,30 +59,25 @@ def train():
         print(f'{feature_str} model has been trained')
         return
     setRandomSeed(seed)
-    loader_container = LoaderContainer(dataset_dir, batch_size=batch_size, shuffle=shuffle,
-                                       scaler_type='StandardScaler')
+    loader_container = LoaderContainer(dataset_dir, batch_size=batch_size, shuffle=shuffle, scaler_type='StandardScaler')
     setRandomSeed(seed)
     workflow = WorkFlow(loader_container, hidden_dim, encoder_type)
     setRandomSeed(seed)
-    encoder, feature_heads, epochs_pre_train, pre_train_loss_list, pre_val_loss_list \
-        = workflow.pre_train(feature_list, device=device)
+    encoder, heads, epochs_train, train_loss_list, val_loss_list \
+        = workflow.MOTIVATION_one_phase_train(feature_list, device=device)
     # save pretrained model
-    for feature_head, feature_index in zip(feature_heads, feature_list):
+    for feature_head, feature_index in zip(heads[:-1], feature_list):
         torch.save(feature_head, os.path.join(cur_feature_dir, str(feature_index) + '-feature_head.pt'))
-    torch.save(encoder, pretrained_encoder_file)
 
-    encoder, head, epochs_train, train_loss_list, val_loss_list = workflow.train(encoder, device=device)
-
-    save_image(epochs_pre_train, pre_train_loss_list, pre_val_loss_list, os.path.join(cur_feature_dir, 'train.svg'))
     save_image(epochs_train, train_loss_list, val_loss_list, os.path.join(cur_feature_dir, 'train.svg'))
     torch.save(encoder, encoder_file)
-    torch.save(head, head_file)
+    torch.save(heads[-1], head_file)
 
     # save epochs info
-    epochs_num = np.array([epochs_pre_train, epochs_train])
+    epochs_num = np.array([epochs_train])
     epoch_info_file_name = os.path.join(cur_feature_dir, 'epoch_info.csv')
     np.savetxt(fname=epoch_info_file_name, X=epochs_num, delimiter=',')
 
 
 if __name__ == '__main__':
-    train()
+    Motivation_train()

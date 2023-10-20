@@ -7,7 +7,7 @@ from enum import Enum
 from Models import Head
 from sklearn.preprocessing import LabelEncoder, QuantileTransformer, StandardScaler, MinMaxScaler
 import torch.nn.functional as F
-
+import os
 
 class TaskType(Enum):
     regression = 1
@@ -132,7 +132,7 @@ class LoaderContainer:
     def __init__(self, dataset_dir, batch_size, shuffle, scaler_type):
         self.shuffle = shuffle
         self.batch_size = batch_size
-        info_json = dataset_dir + 'info.json'
+        info_json = os.path.join(dataset_dir, 'info.json')
         with open(info_json, 'r') as f:
             info = json.load(f)
             n_num_features = info['n_num_features']
@@ -152,24 +152,24 @@ class LoaderContainer:
                 self.out_dim = info['n_classes']
 
             # feature
-            num_train = dataset_dir + 'N_train.npy'
-            cat_train = dataset_dir + 'C_train.npy'
+            num_train = os.path.join(dataset_dir, 'N_train.npy')
+            cat_train = os.path.join(dataset_dir, 'C_train.npy')
             num_train, cat_train = LoadInput(num_train, n_num_features, cat_train, n_cat_features)
 
-            num_val = dataset_dir + 'N_val.npy'
-            cat_val = dataset_dir + 'C_val.npy'
+            num_val = os.path.join(dataset_dir, 'N_val.npy')
+            cat_val = os.path.join(dataset_dir, 'C_val.npy')
             num_val, cat_val = LoadInput(num_val, n_num_features, cat_val, n_cat_features)
 
-            num_test = dataset_dir + 'N_test.npy'
-            cat_test = dataset_dir + 'C_test.npy'
+            num_test = os.path.join(dataset_dir, 'N_test.npy')
+            cat_test = os.path.join(dataset_dir, 'C_test.npy')
             num_test, cat_test = LoadInput(num_test, n_num_features, cat_test, n_cat_features)
 
             # targets
-            train_target_dir = dataset_dir + 'y_train.npy'
+            train_target_dir = os.path.join(dataset_dir, 'y_train.npy')
             train_targets = LoadTarget(train_target_dir)
-            val_target_dir = dataset_dir + 'y_val.npy'
+            val_target_dir = os.path.join(dataset_dir, 'y_val.npy')
             val_targets = LoadTarget(val_target_dir)
-            test_target_dir = dataset_dir + 'y_test.npy'
+            test_target_dir = os.path.join(dataset_dir, 'y_test.npy')
             test_targets = LoadTarget(test_target_dir)
 
             '''
