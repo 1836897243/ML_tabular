@@ -22,8 +22,6 @@ class Analyse:
                 self.targets = np.append(self.targets, targets.numpy(), axis=0)
         _, self.num_list, self.cat_list, self.task_type = self.loader_container.getInfo()
 
-        self.degree_mean_feature = {}
-        self.mean_degree_feature = {}
         self.dis_correlation = {}
 
     def compute_degree_of_mean_numerical_features(self, feature_list):
@@ -47,6 +45,7 @@ class Analyse:
 
 
     def compute_distance_correlation(self, feature_list):
+        print(feature_list)
         if len(feature_list) == 0:
             return 0
 
@@ -61,4 +60,16 @@ class Analyse:
                                                                      self.targets, target_categorical)
 
         correlations = [self.dis_correlation[index] for index in feature_list]
-        return np.mean(correlations)
+        return np.sum(correlations)
+        
+    def compute_pearson_coefficient(self, feature_list):
+        for index in feature_list:
+            assert index in self.num_list
+
+        # no feature(feature_list = [])
+        if len(feature_list) == 0:
+            return 0
+
+        coefficients = [pearson_coefficient(self.features[:, index], self.targets.flatten()) for index in feature_list]
+       
+        return np.sum(coefficients)

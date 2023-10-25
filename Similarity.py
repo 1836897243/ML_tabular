@@ -7,6 +7,9 @@ def Degree(array1: np.ndarray, array2: np.ndarray) -> float:
     norm2 = np.linalg.norm(array2)
     return np.arccos(np.dot(array1, array2) / (norm1 * norm2)) / 3.1415926 * 180
 
+def pearson_coefficient(arr1:np.array, arr2:np.array):
+    correlation_matrix  = np.corrcoef(arr1, arr2)
+    return correlation_matrix[0,1]
 
 def getAdjacencyMatrix(S: np.array, categorical: bool):
     if categorical is True:
